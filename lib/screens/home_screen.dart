@@ -4,6 +4,10 @@ import 'package:intl/intl.dart';
 import '../providers/work_provider.dart';
 import '../models/company.dart';
 import 'add_company_screen.dart';
+import 'package:work_calendar_app/screens/add_company_screen.dart';
+import 'package:work_calendar_app/providers/work_provider.dart';
+import 'package:work_calendar_app/models/company.dart';
+import 'dart:ui';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -13,7 +17,13 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: Consumer<WorkProvider>(
         builder: (context, provider, child) {
-          if (!provider.hasCompanies) {
+          // 로딩 중이거나 아직 회사를 불러오지 못한 경우
+          if (provider.companies.isEmpty && !provider.hasAttemptedLoad) { // 로드 시도 여부 플래그 추가 가정
+            // provider.loadCompanies(); // 여기서 호출하거나 initSate에서 호출
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (provider.companies.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -31,253 +41,112 @@ class HomeScreen extends StatelessWidget {
               ),
             );
           }
+          
+          // 회사 목록이 있을 경우 UI
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 회사 선택 드롭다운
+                DropdownButtonFormField<Company>(
+                  decoration: const InputDecoration(
+                    labelText: '회사 선택',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: provider.selectedCompany, // provider.selectedCompany가 null일 수 있음
+                  hint: const Text("회사를 선택해주세요"), // selectedCompany가 null일 때 표시될 텍스트
+                  isExpanded: true, // 드롭다운이 전체 너비를 차지하도록
+                  items: provider.companies.map((company) {
+                    return DropdownMenuItem<Company>(
+                      value: company, // Company 객체 전체를 value로 사용
+                      child: Text(company.name),
+                    );
+                  }).toList(),
+                  onChanged: (Company? newValue) {
+                    if (newValue != null) {
+                      provider.setSelectedCompany(newValue);
+                    }
+                  },
+                  validator: (value) => value == null ? '회사를 선택해주세요.' : null,
+                ),
+                const SizedBox(height: 20),
 
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 상단 날짜 표시
+                // 선택된 회사 정보 및 출퇴근 UI (기존 UI를 여기에 통합)
+                if (provider.selectedCompany != null) ...[
                   Text(
-                    DateFormat('yyyy년 MM월 dd일').format(DateTime.now()),
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
+                    '선택된 회사: ${provider.selectedCompany!.name}',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text('ID: ${provider.selectedCompany!.id}'),
+                  const SizedBox(height: 20),
+                  
+                  // 출근/퇴근 버튼 로직 (기존 홈스크린의 로직을 가져와야 함)
+                  if (provider.isCheckedIn) ...[
+                    Text('출근 시간: ${TimeOfDay.fromDateTime(provider.checkInDateTime!).format(context)}'),
+                    Text('현재 근무 시간: ${_formatDuration(provider.currentWorkDuration)}'),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        provider.checkOut();
+                        // 출퇴근 기록 저장 로직 (필요시 WorkProvider 또는 여기서 호출)
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                      child: const Text('퇴근'),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // 회사 선택 및 기간 선택
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<Company>(
-                              value: provider.selectedCompany,
-                              items: provider.companies.map((Company company) {
-                                return DropdownMenuItem<Company>(
-                                  value: company,
-                                  child: Text(company.name),
-                                );
-                              }).toList(),
-                              onChanged: (Company? newValue) {
-                                if (newValue != null) {
-                                  provider.setSelectedCompany(newValue);
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _showAddCompanyScreen(context),
-                        icon: const Icon(Icons.add),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: provider.selectedPeriod,
-                            items: provider.periods.map((String period) {
-                              return DropdownMenuItem<String>(
-                                value: period,
-                                child: Text(period),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                provider.setSelectedPeriod(newValue);
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // 근무 통계
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${provider.getPeriodLabel()} 근무 통계',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('근무 시간'),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _formatDuration(provider.getWorkDuration()),
-                                      style: Theme.of(context).textTheme.headlineSmall,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('${provider.getPeriodLabel()} 급여'),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${NumberFormat('#,###').format(provider.getWage().round())}원',
-                                      style: Theme.of(context).textTheme.headlineSmall,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                  ] else ...[
+                    ElevatedButton(
+                      onPressed: () {
+                        provider.checkIn();
+                      },
+                      child: const Text('출근'),
                     ),
-                  ),
-                  const Spacer(),
+                  ],
+                  const SizedBox(height: 20),
+                  // 추가적인 정보 표시 (예: 오늘 근무 기록, 총 근무 시간 등)
+                  // 이 부분은 기존 HomeScreen의 다른 UI 요소들을 참고하여 구성합니다.
                   
-                  // 출퇴근 정보 및 버튼
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (provider.checkInDateTime != null) ...[
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.access_time, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '오늘의 근무 정보',
-                                      style: Theme.of(context).textTheme.titleMedium,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text('출근 시간'),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _formatDateTime(provider.checkInDateTime!),
-                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                              fontFeatures: [
-                                                const FontFeature.tabularFigures(),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      width: 1,
-                                      height: 40,
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          const Text('현재 근무 시간'),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _formatDuration(provider.currentWorkDuration),
-                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                              color: Theme.of(context).primaryColor,
-                                              fontFeatures: [
-                                                const FontFeature.tabularFigures(),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      ElevatedButton(
-                        onPressed: () {
-                          if (provider.isCheckedIn) {
-                            provider.checkOut();
-                          } else {
-                            provider.checkIn();
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: provider.isCheckedIn 
-                              ? Colors.red.shade400
-                              : Theme.of(context).primaryColor,
-                        ),
-                        child: Text(
-                          provider.isCheckedIn ? '퇴근하기' : '출근하기',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                ] else ...[
+                  const Center(child: Text('회사를 선택하면 출퇴근 기능을 사용할 수 있습니다.')),
                 ],
-              ),
+                
+                // 기타 UI 요소들 (예: 근무 통계 보기 버튼 등)
+                const Spacer(), // 남은 공간을 채움
+                ElevatedButton(
+                    onPressed: () {
+                    // 근무 기록 화면으로 이동하는 로직 등
+                    },
+                    child: const Text('근무 기록 보기'),
+                ),
+              ],
             ),
           );
         },
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddCompanyScreen(context),
+        child: const Icon(Icons.add),
+      ),
     );
   }
 
-  Future<void> _showAddCompanyScreen(BuildContext context) async {
-    final result = await Navigator.push<Company>(
+  void _showAddCompanyScreen(BuildContext context) async {
+    final workProvider = Provider.of<WorkProvider>(context, listen: false);
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AddCompanyScreen()),
     );
-    
-    if (result != null) {
-      if (!context.mounted) return;
-      context.read<WorkProvider>().addCompany(result);
+    if (result != null && result is Company) {
+      // workProvider.addCompany(result); // 기존 로직, WorkProvider에서 DB 저장을 안하므로 주석 처리 또는 삭제
+      await workProvider.loadCompanies(); // 회사 추가 후 목록 새로고침
     }
   }
 
   String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-    return '$hours시간 $minutes분 $seconds초';
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
+    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
+    return "${twoDigits(duration.inHours)}:$twoDigitMinutes:$twoDigitSeconds";
   }
 
   String _formatDateTime(DateTime dateTime) {

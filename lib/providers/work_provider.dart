@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/work_record.dart';
 import '../models/company.dart';
+import '../database_helper.dart';
 
 class WorkProvider extends ChangeNotifier {
   final List<WorkRecord> _records = [];
-  final List<Company> _companies = [];
+  List<Company> _companies = [];
   DateTime? _checkInDateTime;
   String _selectedPeriod = '주간';
   final List<String> periods = ['일간', '주간', '월간', '연간'];
   Company? _selectedCompany;
   Timer? _timer;
   Duration _currentWorkDuration = Duration.zero;
+  bool _hasAttemptedLoad = false;
   
   List<WorkRecord> get records => _records;
   List<Company> get companies => _companies;
@@ -24,11 +26,35 @@ class WorkProvider extends ChangeNotifier {
   bool get isCheckedIn => _checkInDateTime != null;
   bool get hasCompanies => _companies.isNotEmpty;
   Duration get currentWorkDuration => _currentWorkDuration;
+  bool get hasAttemptedLoad => _hasAttemptedLoad;
+
+  WorkProvider() {
+    loadCompanies();
+  }
 
   @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  Future<void> loadCompanies() async {
+    try {
+      print("WorkProvider: 회사 목록 로딩 시작...");
+      _companies = await DatabaseHelper().getCompanies();
+      print("WorkProvider: 로딩된 회사 수: ${_companies.length}");
+      if (_companies.isNotEmpty && _selectedCompany == null) {
+        _selectedCompany = _companies.first;
+        print("WorkProvider: 기본 선택된 회사: ${_selectedCompany?.name}");
+      }
+    } catch (e) {
+      print("WorkProvider: 회사 로딩 중 에러 발생: $e");
+      _companies = []; // 에러 발생 시 빈 리스트로 처리
+    } finally {
+      _hasAttemptedLoad = true;
+      print("WorkProvider: 회사 로딩 시도 완료. hasAttemptedLoad: $_hasAttemptedLoad");
+      notifyListeners(); // 데이터 로드 완료/실패 후 UI 갱신
+    }
   }
 
   void addCompany(Company company) {
@@ -76,7 +102,7 @@ class WorkProvider extends ChangeNotifier {
       date: DateTime.now(),
       checkIn: TimeOfDay.fromDateTime(_checkInDateTime!),
       checkOut: TimeOfDay.fromDateTime(DateTime.now()),
-      company: _selectedCompany!.name,
+      companyId: _selectedCompany!.id!,
       hourlyWage: _selectedCompany!.hourlyWage,
     );
     

@@ -5,9 +5,19 @@ import 'screens/home_screen.dart';
 import 'screens/record_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/work_provider.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
-void main() {
-  initializeDateFormatting('ko_KR').then((_) => runApp(const MyApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
+  await initializeDateFormatting('ko_KR');
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

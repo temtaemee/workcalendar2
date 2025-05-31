@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/company.dart';
+import '../database_helper.dart';
 
 class AddCompanyScreen extends StatefulWidget {
   const AddCompanyScreen({super.key});
@@ -182,7 +183,7 @@ class _AddCompanyScreenState extends State<AddCompanyScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (_formKey.currentState!.validate()) {
                       final company = Company(
                         name: _nameController.text,
@@ -194,6 +195,7 @@ class _AddCompanyScreenState extends State<AddCompanyScreen> {
                         lunchEndTime: _excludeLunchTime ? _lunchEndTime : null,
                         hourlyWage: double.parse(_hourlyWageController.text),
                       );
+                      await DatabaseHelper().insertCompany(company);
                       Navigator.pop(context, company);
                     }
                   },

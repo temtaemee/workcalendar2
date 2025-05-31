@@ -138,7 +138,7 @@ class _RecordScreenState extends State<RecordScreen> {
               children: [
                 Row(
                   children: [
-                    Text(r.company, style: Theme.of(context).textTheme.titleMedium),
+                    Text(r.companyId.toString(), style: Theme.of(context).textTheme.titleMedium),
                     const Spacer(),
                     Text(
                       '${NumberFormat('#,###').format(wage.round())}원',
