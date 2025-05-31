@@ -66,7 +66,7 @@ class WorkProvider extends ChangeNotifier {
       _checkInDateTime = DateTime(
         ongoing.date.year, ongoing.date.month, ongoing.date.day,
         ongoing.checkIn?.hour ?? 0, ongoing.checkIn?.minute ?? 0
-      );
+      ).toUtc().add(const Duration(hours: 9));
       _currentWorkRecordId = ongoing.id;
       _startTimer();
       notifyListeners();
@@ -95,7 +95,7 @@ class WorkProvider extends ChangeNotifier {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_checkInDateTime != null) {
-        final now = DateTime.now();
+        final now = DateTime.now().toUtc().add(const Duration(hours: 9));
         _currentWorkDuration = now.difference(_checkInDateTime!);
         notifyListeners();
       }
@@ -104,10 +104,10 @@ class WorkProvider extends ChangeNotifier {
 
   void checkIn() async {
     if (_selectedCompany == null) return;
-    _checkInDateTime = DateTime.now();
+    _checkInDateTime = DateTime.now().toUtc().add(const Duration(hours: 9));
     _currentWorkDuration = Duration.zero;
     final record = WorkRecord(
-      date: DateTime.now(),
+      date: _checkInDateTime!,
       checkIn: TimeOfDay.fromDateTime(_checkInDateTime!),
       checkOut: null,
       companyId: _selectedCompany!.id!,
@@ -123,7 +123,7 @@ class WorkProvider extends ChangeNotifier {
   void checkOut() async {
     if (_checkInDateTime == null || _selectedCompany == null || _currentWorkRecordId == null) return;
     _timer?.cancel();
-    final checkOutTime = TimeOfDay.fromDateTime(DateTime.now());
+    final checkOutTime = TimeOfDay.fromDateTime(DateTime.now().toUtc().add(const Duration(hours: 9)));
     // 기존 출근 기록 불러오기
     final db = DatabaseHelper();
     final dbRecords = await db.getWorkRecords();
@@ -138,7 +138,7 @@ class WorkProvider extends ChangeNotifier {
         companyId: record.companyId,
         hourlyWage: record.hourlyWage,
       );
-      print('[퇴근] companyId: \'${record.companyId}\', time: \'${DateTime.now()}\'');
+      print('[퇴근] companyId: \'${record.companyId}\', time: \'${DateTime.now().toUtc().add(const Duration(hours: 9))}\'');
       await db.updateWorkRecord(updated);
     }
     _checkInDateTime = null;

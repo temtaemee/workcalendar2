@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/work_provider.dart';
 import '../models/company.dart';
 import 'add_company_screen.dart';
@@ -8,19 +9,24 @@ import 'package:work_calendar_app/screens/add_company_screen.dart';
 import 'package:work_calendar_app/providers/work_provider.dart';
 import 'package:work_calendar_app/models/company.dart';
 import 'dart:ui';
+import '../database_helper.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    DateTime nowUtc = DateTime.now().toUtc();
+    DateTime kst = nowUtc.add(const Duration(hours: 9));
+    final today = DateTime(kst.year, kst.month, kst.day);
+    print('nowUtc: $nowUtc');
+    print('kst: $kst');
     return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
       body: SafeArea(
         child: Consumer<WorkProvider>(
           builder: (context, provider, child) {
-            // 로딩 중이거나 아직 회사를 불러오지 못한 경우u
-            if (provider.companies.isEmpty && !provider.hasAttemptedLoad) { // 로드 시도 여부 플래그 추가 가정
-              // provider.loadCompanies(); // 여기서 호출하거나 initSate에서 호출
+            if (provider.companies.isEmpty && !provider.hasAttemptedLoad) {
               return const Center(child: CircularProgressIndicator());
             }
 
@@ -29,95 +35,278 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
+                    Text(
                       '등록된 회사가 없습니다',
-                      style: TextStyle(fontSize: 18),
+                      style: GoogleFonts.notoSans(fontSize: 18, fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => _showAddCompanyScreen(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                        textStyle: GoogleFonts.notoSans(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
                       child: const Text('회사 추가하기'),
                     ),
                   ],
                 ),
               );
             }
-            
-            // 회사 목록이 있을 경우 UI
+
             return Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // 회사 선택 드롭다운
-                  DropdownButtonFormField<Company>(
-                    decoration: const InputDecoration(
-                      labelText: '회사 선택',
-                      border: OutlineInputBorder(),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    value: provider.selectedCompany, // provider.selectedCompany가 null일 수 있음
-                    hint: const Text("회사를 선택해주세요"), // selectedCompany가 null일 때 표시될 텍스트
-                    isExpanded: true, // 드롭다운이 전체 너비를 차지하도록
-                    items: provider.companies.map((company) {
-                      return DropdownMenuItem<Company>(
-                        value: company, // Company 객체 전체를 value로 사용
-                        child: Text(company.name),
-                      );
-                    }).toList(),
-                    onChanged: (Company? newValue) {
-                      if (newValue != null) {
-                        provider.setSelectedCompany(newValue);
-                      }
-                    },
-                    validator: (value) => value == null ? '회사를 선택해주세요.' : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        DropdownButtonFormField<Company>(
+                          decoration: InputDecoration(
+                            labelText: '회사 선택',
+                            labelStyle: GoogleFonts.notoSans(fontWeight: FontWeight.w500),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            filled: true,
+                            fillColor: const Color(0xFFF7F8FA),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                          ),
+                          value: provider.selectedCompany,
+                          hint: Text("회사를 선택해주세요", style: GoogleFonts.notoSans()),
+                          isExpanded: true,
+                          items: provider.companies.map((company) {
+                            return DropdownMenuItem<Company>(
+                              value: company,
+                              child: Text(company.name, style: GoogleFonts.notoSans(fontWeight: FontWeight.w500)),
+                            );
+                          }).toList(),
+                          onChanged: (Company? newValue) {
+                            if (newValue != null) {
+                              provider.setSelectedCompany(newValue);
+                            }
+                          },
+                          validator: (value) => value == null ? '회사를 선택해주세요.' : null,
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F4FB),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.calendar_today, size: 18, color: Colors.blueAccent),
+                              const SizedBox(width: 8),
+                              Text(
+                                DateFormat('yyyy년 M월 d일 (E)', 'ko').format(kst),
+                                style: GoogleFonts.notoSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blueAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        if (provider.selectedCompany != null) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                provider.selectedCompany!.name,
+                                style: GoogleFonts.notoSans(fontSize: 20, fontWeight: FontWeight.bold),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: provider.isCheckedIn ? Colors.green[100] : Colors.red[100],
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  provider.isCheckedIn ? '근무 중' : '퇴근',
+                                  style: GoogleFonts.notoSans(
+                                    color: provider.isCheckedIn ? Colors.green[800] : Colors.red[700],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, color: Colors.blueAccent, size: 20),
+                              const SizedBox(width: 6),
+                              Text(
+                                provider.isCheckedIn
+                                  ? '출근: ${TimeOfDay.fromDateTime(provider.checkInDateTime!).format(context)}'
+                                  : '출근 전',
+                                style: GoogleFonts.notoSans(fontSize: 15, color: Colors.black87),
+                              ),
+                              const SizedBox(width: 16),
+                              if (provider.isCheckedIn)
+                                Text(
+                                  '근무: ${_formatDuration(provider.currentWorkDuration)}',
+                                  style: GoogleFonts.notoSans(fontSize: 15, color: Colors.blueAccent, fontWeight: FontWeight.w600),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: provider.isCheckedIn
+                                    ? () { provider.checkOut(); }
+                                    : () { provider.checkIn(); },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: provider.isCheckedIn ? Colors.redAccent : Colors.blueAccent,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    textStyle: GoogleFonts.notoSans(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                  child: Text(provider.isCheckedIn ? '퇴근' : '출근'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              '회사를 선택하면 출퇴근 기능을 사용할 수 있습니다.',
+                              style: GoogleFonts.notoSans(color: Colors.grey[600], fontSize: 15),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 20),
-
-                  // 선택된 회사 정보 및 출퇴근 UI (기존 UI를 여기에 통합)
-                  if (provider.selectedCompany != null) ...[
-                    // Text(
-                    //   '선택된 회사: ${provider.selectedCompany!.name}',
-                    //   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    // ),
-                    // Text('ID: ${provider.selectedCompany!.id}'),
-                    const SizedBox(height: 20),
-                    
-                    // 출근/퇴근 버튼 로직 (기존 홈스크린의 로직을 가져와야 함)
-                    if (provider.isCheckedIn) ...[
-                      Text('출근 시간: ${TimeOfDay.fromDateTime(provider.checkInDateTime!).format(context)}'),
-                      Text('현재 근무 시간: ${_formatDuration(provider.currentWorkDuration)}'),
-                      const SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: () {
-                          provider.checkOut();
-                          // 출퇴근 기록 저장 로직 (필요시 WorkProvider 또는 여기서 호출)
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                        child: const Text('퇴근'),
-                      ),
-                    ] else ...[
-                      ElevatedButton(
-                        onPressed: () {
-                          provider.checkIn();
-                        },
-                        child: const Text('출근'),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    // 추가적인 정보 표시 (예: 오늘 근무 기록, 총 근무 시간 등)
-                    // 이 부분은 기존 HomeScreen의 다른 UI 요소들을 참고하여 구성합니다.
-                    
-                  ] else ...[
-                    const Center(child: Text('회사를 선택하면 출퇴근 기능을 사용할 수 있습니다.')),
-                  ],
-                  
-                  // 기타 UI 요소들 (예: 근무 통계 보기 버튼 등)
-                  const Spacer(), // 남은 공간을 채움
-                  ElevatedButton(
-                      onPressed: () {
-                      // 근무 기록 화면으로 이동하는 로직 등
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final records = await DatabaseHelper().getWorkRecordsByDateRange(today);
+                        final companies = await DatabaseHelper().getCompanies();
+                        final companyMap = { for (var c in companies) c.id!: c };
+                        showModalBottomSheet(
+                          context: context,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                          ),
+                          isScrollControlled: true,
+                          builder: (context) {
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                              child: SizedBox(
+                                height: MediaQuery.of(context).size.height * 0.6,
+                                child: records.isEmpty
+                                  ? Center(child: Text('오늘 근무 기록이 없습니다', style: GoogleFonts.notoSans(fontSize: 16, color: Colors.grey[600])))
+                                  : ListView.builder(
+                                      itemCount: records.length,
+                                      itemBuilder: (context, index) {
+                                        final r = records[index];
+                                        final company = companyMap[r.companyId];
+                                        final companyName = company?.name ?? '알 수 없음';
+                                        final duration = r.workDuration;
+                                        final timeStr = '${r.checkIn?.format(context) ?? '--:--'} ~ ${r.checkOut?.format(context) ?? '--:--'}';
+                                        final durationStr = duration.inHours > 0
+                                            ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
+                                            : '${duration.inMinutes}분';
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(12),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.05),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  flex: 3,
+                                                  child: Text(
+                                                    companyName,
+                                                    style: GoogleFonts.notoSans(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  flex: 4,
+                                                  child: Text(
+                                                    timeStr,
+                                                    style: GoogleFonts.notoSans(
+                                                      fontSize: 15,
+                                                      color: Colors.black87,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  flex: 3,
+                                                  child: Align(
+                                                    alignment: Alignment.centerRight,
+                                                    child: Text(
+                                                      durationStr,
+                                                      style: GoogleFonts.notoSans(
+                                                        color: Colors.red[700],
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 16,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                              ),
+                            );
+                          },
+                        );
                       },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.blueAccent,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Colors.blueAccent)),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: GoogleFonts.notoSans(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
                       child: const Text('근무 기록 보기'),
+                    ),
                   ),
                 ],
               ),
@@ -125,10 +314,6 @@ class HomeScreen extends StatelessWidget {
           },
         ),
       ),
-      // floatingActionButton: FloatingActionButton(
-      //   onPressed: () => _showAddCompanyScreen(context),
-      //   child: const Icon(Icons.add),
-      // ),
     );
   }
 
@@ -139,8 +324,7 @@ class HomeScreen extends StatelessWidget {
       MaterialPageRoute(builder: (context) => const AddCompanyScreen()),
     );
     if (result != null && result is Company) {
-      // workProvider.addCompany(result); // 기존 로직, WorkProvider에서 DB 저장을 안하므로 주석 처리 또는 삭제
-      await workProvider.loadCompanies(); // 회사 추가 후 목록 새로고침
+      await workProvider.loadCompanies();
     }
   }
 

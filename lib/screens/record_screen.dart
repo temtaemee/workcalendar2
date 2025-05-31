@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../providers/work_provider.dart';
 import '../models/work_record.dart';
 import '../database_helper.dart';
@@ -16,29 +17,47 @@ class RecordScreen extends StatefulWidget {
 
 class _RecordScreenState extends State<RecordScreen> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
-  DateTime _focusedDay = DateTime.now();
+  DateTime _focusedDay = DateTime.now().toUtc().add(const Duration(hours: 9));
   DateTime? _selectedDay;
+  Future<List<Object?>>? _futureData;
 
   @override
   void initState() {
     super.initState();
-    _selectedDay = _focusedDay;
+    final nowKst = DateTime.now().toUtc().add(const Duration(hours: 9));
+    _focusedDay = nowKst;
+    _selectedDay = nowKst;
+    _futureData = _loadMonthData(_focusedDay);
+  }
+
+  Future<List<Object?>> _loadMonthData(DateTime focusedDay) {
+    final firstDayOfMonth = DateTime(focusedDay.year, focusedDay.month, 1);
+    final lastDayOfMonth = DateTime(focusedDay.year, focusedDay.month + 1, 0);
+    return Future.wait([
+      DatabaseHelper().getWorkRecordsByDateRange(firstDayOfMonth, lastDayOfMonth),
+      DatabaseHelper().getCompanies(),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final firstDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month, 1);
-    final lastDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('근무 기록'),
+        title: Text(
+          '근무 기록',
+          style: GoogleFonts.notoSans(
+            fontSize: 20,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
       ),
       body: FutureBuilder<List<Object?>>(
-        future: Future.wait([
-          DatabaseHelper().getWorkRecordsByDateRange(firstDayOfMonth, lastDayOfMonth),
-          DatabaseHelper().getCompanies(),
-        ]),
+        future: _futureData,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -47,9 +66,9 @@ class _RecordScreenState extends State<RecordScreen> {
           final companies = (snapshot.data![1] as List).cast<Company>();
           final companyMap = { for (var c in companies) c.id!: c };
           final workRecordsByDate = _groupByDate(workRecords);
-          // 오늘 총 근무 시간 계산
-          final today = DateTime.now();
-          final todayRecords = workRecordsByDate[DateTime(today.year, today.month, today.day)] ?? [];
+          final nowKst = DateTime.now().toUtc().add(const Duration(hours: 9));
+          final today = DateTime(nowKst.year, nowKst.month, nowKst.day);
+          final todayRecords = workRecordsByDate[today] ?? [];
           final totalDuration = todayRecords.fold<Duration>(
             Duration.zero,
             (prev, r) => prev + r.workDuration,
@@ -63,17 +82,47 @@ class _RecordScreenState extends State<RecordScreen> {
               : workRecordsByDate[DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day)] ?? [];
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 8, bottom: 8),
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: Text(
                   '오늘 총 근무 시간: $hh:$mm',
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
+                  style: GoogleFonts.notoSans(
+                    color: Colors.red[700],
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               Expanded(
                 child: Column(
                   children: [
-                    _buildCalendar(workRecordsByDate),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: _buildCalendar(workRecordsByDate),
+                    ),
                     const Divider(height: 1),
                     Expanded(
                       child: _buildDayRecordsWithCompany(
@@ -102,6 +151,8 @@ class _RecordScreenState extends State<RecordScreen> {
 
   /// 캘린더 위젯
   Widget _buildCalendar(Map<DateTime, List<WorkRecord>> workRecords) {
+    final nowKst = DateTime.now().toUtc().add(const Duration(hours: 9));
+    final todayKst = DateTime(nowKst.year, nowKst.month, nowKst.day);
     return TableCalendar<WorkRecord>(
       firstDay: DateTime.now().subtract(const Duration(days: 365)),
       lastDay: DateTime.now().add(const Duration(days: 365)),
@@ -110,40 +161,62 @@ class _RecordScreenState extends State<RecordScreen> {
       calendarFormat: _calendarFormat,
       startingDayOfWeek: StartingDayOfWeek.sunday,
       locale: 'ko_KR',
-      daysOfWeekHeight: 30, // << 요일 영역 높이 설정
-      headerStyle: const HeaderStyle(
+      rowHeight: 56,
+      headerStyle: HeaderStyle(
         formatButtonVisible: false,
         titleCentered: true,
+        titleTextStyle: GoogleFonts.notoSans(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
       ),
-      calendarStyle: const CalendarStyle(
+      calendarStyle: CalendarStyle(
         outsideDaysVisible: false,
-        defaultTextStyle: TextStyle(color: Colors.black),
-        holidayTextStyle: TextStyle(color: Colors.red),
+        defaultTextStyle: GoogleFonts.notoSans(
+          color: Colors.black87,
+          fontSize: 14,
+        ),
+        holidayTextStyle: GoogleFonts.notoSans(
+          color: Colors.red[700],
+          fontSize: 14,
+        ),
+        selectedDecoration: BoxDecoration(
+          color: Colors.blue[700],
+          shape: BoxShape.circle,
+        ),
+        todayDecoration: BoxDecoration(
+          color: Colors.blue[100],
+          shape: BoxShape.circle,
+        ),
       ),
-      daysOfWeekStyle: const DaysOfWeekStyle(
-        weekdayStyle: TextStyle(color: Colors.black),
-        weekendStyle: TextStyle(color: Colors.red),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: Colors.grey)),
+      daysOfWeekStyle: DaysOfWeekStyle(
+        weekdayStyle: GoogleFonts.notoSans(
+          color: Colors.black87,
+          fontSize: 14,
+        ),
+        weekendStyle: GoogleFonts.notoSans(
+          color: Colors.red[700],
+          fontSize: 14,
+        ),
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
         ),
       ),
       calendarBuilders: CalendarBuilders(
-        defaultBuilder: (context, day, focusedDay) {
-          if (day.weekday == DateTime.saturday) {
-            return Center(
-              child: Text(
-                '${day.day}',
-                style: const TextStyle(color: Colors.blue),
-              ),
-            );
-          }
-          return null;
+        defaultBuilder: (context, day, focusedDay) => _buildDayCell(day, workRecords),
+        selectedBuilder: (context, day, focusedDay) => _buildDayCell(day, workRecords, isSelected: true),
+        todayBuilder: (context, day, focusedDay) {
+          final isKstToday = isSameDay(day, todayKst);
+          return _buildDayCell(day, workRecords, isToday: isKstToday);
         },
+        markerBuilder: (context, day, events) => SizedBox.shrink(),
       ),
       onDaySelected: (selectedDay, focusedDay) {
         setState(() {
-          _selectedDay = selectedDay;
-          _focusedDay = focusedDay;
+          final kstSelected = DateTime(selectedDay.year, selectedDay.month, selectedDay.day);
+          final kstFocused = DateTime(focusedDay.year, focusedDay.month, focusedDay.day);
+          _selectedDay = kstSelected;
+          _focusedDay = kstFocused;
         });
       },
       onFormatChanged: (format) {
@@ -152,19 +225,85 @@ class _RecordScreenState extends State<RecordScreen> {
         });
       },
       onPageChanged: (focusedDay) {
-        _focusedDay = focusedDay;
+        setState(() {
+          final kstFocused = DateTime(focusedDay.year, focusedDay.month, focusedDay.day);
+          _focusedDay = kstFocused;
+          _futureData = _loadMonthData(kstFocused);
+        });
       },
       eventLoader: (day) => workRecords[DateTime(day.year, day.month, day.day)] ?? [],
     );
   }
 
+  Widget _buildDayCell(DateTime day, Map<DateTime, List<WorkRecord>> workRecords, {bool isSelected = false, bool isToday = false}) {
+    final records = workRecords[DateTime(day.year, day.month, day.day)] ?? [];
+    final totalDuration = records.fold<Duration>(
+      Duration.zero,
+          (prev, r) => prev + r.workDuration,
+    );
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hh = twoDigits(totalDuration.inHours);
+    final mm = twoDigits(totalDuration.inMinutes.remainder(60));
+    final bgColor = isSelected
+        ? Colors.blue[700]
+        : isToday
+        ? Colors.blue[100]
+        : Colors.transparent;
+    final textColor = isSelected ? Colors.white : Colors.black;
+
+    return SizedBox(
+      height: 56, // 여기로 고정
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: bgColor,
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(6),
+              child: Text(
+                '${day.day}',
+                style: TextStyle(color: textColor),
+              ),
+            ),
+            if (records.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '$hh:$mm',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.blueAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   Widget _buildDayRecordsWithCompany(List<WorkRecord> records, Map<int, Company> companyMap) {
     if (records.isEmpty) {
-      return const Center(child: Text('근무 기록이 없습니다'));
+      return Center(
+        child: Text(
+          '근무 기록이 없습니다',
+          style: GoogleFonts.notoSans(
+            color: Colors.grey[600],
+            fontSize: 16,
+          ),
+        ),
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: records.length,
+      shrinkWrap: true,
+      physics: AlwaysScrollableScrollPhysics(),
       itemBuilder: (context, index) {
         final r = records[index];
         final company = companyMap[r.companyId];
@@ -174,18 +313,42 @@ class _RecordScreenState extends State<RecordScreen> {
         final durationStr = duration.inHours > 0
             ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
             : '${duration.inMinutes}분';
-        return Card(
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Expanded(
                   flex: 3,
-                  child: Text(companyName, style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    companyName,
+                    style: GoogleFonts.notoSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ),
                 Expanded(
                   flex: 4,
-                  child: Text(timeStr, style: const TextStyle(fontSize: 16)),
+                  child: Text(
+                    timeStr,
+                    style: GoogleFonts.notoSans(
+                      fontSize: 15,
+                      color: Colors.black87,
+                    ),
+                  ),
                 ),
                 Expanded(
                   flex: 3,
@@ -193,10 +356,10 @@ class _RecordScreenState extends State<RecordScreen> {
                     alignment: Alignment.centerRight,
                     child: Text(
                       durationStr,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                      style: GoogleFonts.notoSans(
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
                       ),
                     ),
                   ),

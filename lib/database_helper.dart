@@ -149,7 +149,7 @@ Future<List<WorkRecord>> getWorkRecords() async {
 
   Future<List<WorkRecord>> getWorkRecordsByDate(DateTime date) async {
     final db = await database;
-    final dateString = DateFormat('yyyy-MM-dd').format(date);
+    final dateString = DateFormat('yyyy-MM-dd').format(date.toUtc().add(const Duration(hours: 9)));
     final List<Map<String, dynamic>> maps = await db.query(
       'work_records',
       where: 'date = ?',
@@ -162,8 +162,8 @@ Future<List<WorkRecord>> getWorkRecords() async {
 
   Future<List<WorkRecord>> getWorkRecordsByCompanyAndDateRange(int companyId, DateTime startDate, DateTime endDate) async {
     final db = await database;
-    final startDateString = DateFormat('yyyy-MM-dd').format(startDate);
-    final endDateString = DateFormat('yyyy-MM-dd').format(endDate);
+    final startDateString = DateFormat('yyyy-MM-dd').format(startDate.toUtc().add(const Duration(hours: 9)));
+    final endDateString = DateFormat('yyyy-MM-dd').format(endDate.toUtc().add(const Duration(hours: 9)));
     final List<Map<String, dynamic>> maps = await db.query(
       'work_records',
       where: 'company_id = ? AND date BETWEEN ? AND ?',
@@ -237,21 +237,21 @@ Future<List<WorkRecord>> getWorkRecords() async {
   }
 
   Future<List<WorkRecord>> getTodayWorkRecords() async {
-    final today = DateTime.now();
+    final today = DateTime.now().toUtc().add(const Duration(hours: 9));
     return await getWorkRecordsByDate(today);
   }
 
-  Future<List<WorkRecord>> getWorkRecordsByDateRange(DateTime startDate, DateTime endDate) async {
+  Future<List<WorkRecord>> getWorkRecordsByDateRange(DateTime startDate, [DateTime? endDate]) async {
     final db = await database;
-    final startDateString = DateFormat('yyyy-MM-dd').format(startDate);
-    final endDateString = DateFormat('yyyy-MM-dd').format(endDate);
+    final startDateString = DateFormat('yyyy-MM-dd').format(startDate.toUtc().add(const Duration(hours: 9)));
+    final endDateString = DateFormat('yyyy-MM-dd').format(endDate?.toUtc().add(const Duration(hours: 9)) ?? startDate.toUtc().add(const Duration(hours: 9)));
     final List<Map<String, dynamic>> maps = await db.query(
       'work_records',
       where: 'date BETWEEN ? AND ?',
       whereArgs: [startDateString, endDateString],
       orderBy: 'date ASC',
     );
-    print('[DB] getWorkRecordsByDateRange: $startDateString ~ $endDateString, count: \'${maps.length}\'');
+        print('[DB] getWorkRecordsByDateRange: $startDateString ~ $endDateString, count: \'${maps.length}\'');
 
     print(maps);
     return List.generate(maps.length, (i) {
