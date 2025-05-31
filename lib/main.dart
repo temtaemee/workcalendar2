@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'screens/home_screen.dart';
 import 'screens/record_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/work_provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  initializeDateFormatting('ko_KR').then((_) => runApp(const MyApp()));
 }
 
 class MyApp extends StatelessWidget {

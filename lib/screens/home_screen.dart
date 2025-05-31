@@ -187,8 +187,12 @@ class HomeScreen extends StatelessWidget {
                                           const Text('출근 시간'),
                                           const SizedBox(height: 4),
                                           Text(
-                                            DateFormat('HH:mm').format(provider.checkInDateTime!),
-                                            style: Theme.of(context).textTheme.titleLarge,
+                                            _formatDateTime(provider.checkInDateTime!),
+                                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                              fontFeatures: [
+                                                const FontFeature.tabularFigures(),
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -208,6 +212,9 @@ class HomeScreen extends StatelessWidget {
                                             _formatDuration(provider.currentWorkDuration),
                                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                               color: Theme.of(context).primaryColor,
+                                              fontFeatures: [
+                                                const FontFeature.tabularFigures(),
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -269,6 +276,11 @@ class HomeScreen extends StatelessWidget {
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
-    return '$hours시간 $minutes분';
+    final seconds = duration.inSeconds.remainder(60);
+    return '$hours시간 $minutes분 $seconds초';
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return DateFormat('HH:mm:ss').format(dateTime);
   }
 } 
