@@ -5,9 +5,9 @@ import '../models/company.dart';
 import '../database_helper.dart';
 
 class WorkProvider extends ChangeNotifier {
-  final List<WorkRecord> _records = [];
   List<Company> _companies = [];
   DateTime? _checkInDateTime;
+  int? _currentWorkRecordId; // 출근중인 WorkRecord의 id
   String _selectedPeriod = '주간';
   final List<String> periods = ['일간', '주간', '월간', '연간'];
   Company? _selectedCompany;
@@ -15,7 +15,6 @@ class WorkProvider extends ChangeNotifier {
   Duration _currentWorkDuration = Duration.zero;
   bool _hasAttemptedLoad = false;
   
-  List<WorkRecord> get records => _records;
   List<Company> get companies => _companies;
   DateTime? get checkInDateTime => _checkInDateTime;
   TimeOfDay? get checkInTime => _checkInDateTime != null 
@@ -30,6 +29,7 @@ class WorkProvider extends ChangeNotifier {
 
   WorkProvider() {
     loadCompanies();
+    _restoreCheckInState();
   }
 
   @override
@@ -54,6 +54,22 @@ class WorkProvider extends ChangeNotifier {
       _hasAttemptedLoad = true;
       print("WorkProvider: 회사 로딩 시도 완료. hasAttemptedLoad: $_hasAttemptedLoad");
       notifyListeners(); // 데이터 로드 완료/실패 후 UI 갱신
+    }
+  }
+
+  Future<void> _restoreCheckInState() async {
+    final db = DatabaseHelper();
+    final dbRecords = await db.getWorkRecords();
+    final ongoingList = dbRecords.where((r) => r.checkOut == null).toList();
+    final ongoing = ongoingList.isNotEmpty ? ongoingList.first : null;
+    if (ongoing != null) {
+      _checkInDateTime = DateTime(
+        ongoing.date.year, ongoing.date.month, ongoing.date.day,
+        ongoing.checkIn?.hour ?? 0, ongoing.checkIn?.minute ?? 0
+      );
+      _currentWorkRecordId = ongoing.id;
+      _startTimer();
+      notifyListeners();
     }
   }
 
@@ -86,74 +102,103 @@ class WorkProvider extends ChangeNotifier {
     });
   }
 
-  void checkIn() {
+  void checkIn() async {
     if (_selectedCompany == null) return;
     _checkInDateTime = DateTime.now();
     _currentWorkDuration = Duration.zero;
+    final record = WorkRecord(
+      date: DateTime.now(),
+      checkIn: TimeOfDay.fromDateTime(_checkInDateTime!),
+      checkOut: null,
+      companyId: _selectedCompany!.id!,
+      hourlyWage: _selectedCompany!.hourlyWage,
+    );
+    print('[출근] companyId: \'${_selectedCompany!.id}\', time: \'${_checkInDateTime}\'');
+    final id = await DatabaseHelper().insertWorkRecord(record);
+    _currentWorkRecordId = id;
     _startTimer();
     notifyListeners();
   }
 
-  void checkOut() {
-    if (_checkInDateTime == null || _selectedCompany == null) return;
-    
+  void checkOut() async {
+    if (_checkInDateTime == null || _selectedCompany == null || _currentWorkRecordId == null) return;
     _timer?.cancel();
-    final record = WorkRecord(
-      date: DateTime.now(),
-      checkIn: TimeOfDay.fromDateTime(_checkInDateTime!),
-      checkOut: TimeOfDay.fromDateTime(DateTime.now()),
-      companyId: _selectedCompany!.id!,
-      hourlyWage: _selectedCompany!.hourlyWage,
-    );
-    
-    _records.add(record);
+    final checkOutTime = TimeOfDay.fromDateTime(DateTime.now());
+    // 기존 출근 기록 불러오기
+    final db = DatabaseHelper();
+    final dbRecords = await db.getWorkRecords();
+    final recordList = dbRecords.where((r) => r.id == _currentWorkRecordId).toList();
+    final record = recordList.isNotEmpty ? recordList.first : null;
+    if (record != null) {
+      final updated = WorkRecord(
+        id: record.id,
+        date: record.date,
+        checkIn: record.checkIn,
+        checkOut: checkOutTime,
+        companyId: record.companyId,
+        hourlyWage: record.hourlyWage,
+      );
+      print('[퇴근] companyId: \'${record.companyId}\', time: \'${DateTime.now()}\'');
+      await db.updateWorkRecord(updated);
+    }
     _checkInDateTime = null;
+    _currentWorkRecordId = null;
     _currentWorkDuration = Duration.zero;
     notifyListeners();
   }
 
-  Duration getWorkDuration() {
+  Future<Duration> getWorkDuration() async {
+    final dbRecords = await DatabaseHelper().getWorkRecords();
     final now = DateTime.now();
     DateTime startDate;
 
     switch (_selectedPeriod) {
       case '일간':
         startDate = DateTime(now.year, now.month, now.day);
+        break;
       case '주간':
         startDate = now.subtract(Duration(days: now.weekday - 1));
+        break;
       case '월간':
         startDate = DateTime(now.year, now.month, 1);
+        break;
       case '연간':
         startDate = DateTime(now.year, 1, 1);
+        break;
       default:
         startDate = now;
     }
-    
-    return _records
+
+    return dbRecords
         .where((record) => record.date.isAfter(startDate))
-        .fold(Duration.zero, (prev, record) => prev + record.workDuration);
+        .fold<Duration>(Duration.zero, (prev, record) => prev + record.workDuration);
   }
 
-  double getWage() {
+  Future<double> getWage() async {
+    final dbRecords = await DatabaseHelper().getWorkRecords();
     final now = DateTime.now();
     DateTime startDate;
 
     switch (_selectedPeriod) {
       case '일간':
         startDate = DateTime(now.year, now.month, now.day);
+        break;
       case '주간':
         startDate = now.subtract(Duration(days: now.weekday - 1));
+        break;
       case '월간':
         startDate = DateTime(now.year, now.month, 1);
+        break;
       case '연간':
         startDate = DateTime(now.year, 1, 1);
+        break;
       default:
         startDate = now;
     }
-    
-    return _records
+
+    return dbRecords
         .where((record) => record.date.isAfter(startDate))
-        .fold(0.0, (prev, record) => prev + record.dailyWage);
+        .fold<double>(0.0, (prev, record) => prev + record.dailyWage);
   }
 
   String getPeriodLabel() {

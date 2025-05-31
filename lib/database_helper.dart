@@ -235,4 +235,27 @@ Future<List<WorkRecord>> getWorkRecords() async {
     db.close();
     _database = null;
   }
+
+  Future<List<WorkRecord>> getTodayWorkRecords() async {
+    final today = DateTime.now();
+    return await getWorkRecordsByDate(today);
+  }
+
+  Future<List<WorkRecord>> getWorkRecordsByDateRange(DateTime startDate, DateTime endDate) async {
+    final db = await database;
+    final startDateString = DateFormat('yyyy-MM-dd').format(startDate);
+    final endDateString = DateFormat('yyyy-MM-dd').format(endDate);
+    final List<Map<String, dynamic>> maps = await db.query(
+      'work_records',
+      where: 'date BETWEEN ? AND ?',
+      whereArgs: [startDateString, endDateString],
+      orderBy: 'date ASC',
+    );
+    print('[DB] getWorkRecordsByDateRange: $startDateString ~ $endDateString, count: \'${maps.length}\'');
+
+    print(maps);
+    return List.generate(maps.length, (i) {
+      return WorkRecord.fromJson(maps[i]);
+    });
+  }
 } 

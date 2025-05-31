@@ -4,6 +4,8 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../providers/work_provider.dart';
 import '../models/work_record.dart';
+import '../database_helper.dart';
+import '../models/company.dart';
 
 class RecordScreen extends StatefulWidget {
   const RecordScreen({super.key});
@@ -25,22 +27,62 @@ class _RecordScreenState extends State<RecordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final firstDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month, 1);
+    final lastDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
     return Scaffold(
       appBar: AppBar(
         title: const Text('근무 기록'),
         centerTitle: true,
       ),
-      body: Consumer<WorkProvider>(
-        builder: (context, provider, child) {
-          final workRecords = _groupByDate(provider.records);
+      body: FutureBuilder<List<Object?>>(
+        future: Future.wait([
+          DatabaseHelper().getWorkRecordsByDateRange(firstDayOfMonth, lastDayOfMonth),
+          DatabaseHelper().getCompanies(),
+        ]),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final workRecords = (snapshot.data![0] as List).cast<WorkRecord>();
+          final companies = (snapshot.data![1] as List).cast<Company>();
+          final companyMap = { for (var c in companies) c.id!: c };
+          final workRecordsByDate = _groupByDate(workRecords);
+          // 오늘 총 근무 시간 계산
+          final today = DateTime.now();
+          final todayRecords = workRecordsByDate[DateTime(today.year, today.month, today.day)] ?? [];
+          final totalDuration = todayRecords.fold<Duration>(
+            Duration.zero,
+            (prev, r) => prev + r.workDuration,
+          );
+          String twoDigits(int n) => n.toString().padLeft(2, '0');
+          final hh = twoDigits(totalDuration.inHours);
+          final mm = twoDigits(totalDuration.inMinutes.remainder(60));
+          // 선택된 날짜의 기록
+          final selectedRecords = _selectedDay == null
+              ? []
+              : workRecordsByDate[DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day)] ?? [];
           return Column(
             children: [
-              _buildCalendar(workRecords),
-              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Text(
+                  '오늘 총 근무 시간: $hh:$mm',
+                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
               Expanded(
-                child: _selectedDay == null
-                    ? const Center(child: Text('날짜를 선택하세요'))
-                    : _buildDayRecords(workRecords[_selectedDay!] ?? []),
+                child: Column(
+                  children: [
+                    _buildCalendar(workRecordsByDate),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: _buildDayRecordsWithCompany(
+                        (selectedRecords as List).cast<WorkRecord>(),
+                        companyMap,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           );
@@ -116,45 +158,48 @@ class _RecordScreenState extends State<RecordScreen> {
     );
   }
 
-  /// 선택한 날짜의 근무 기록 리스트
-  Widget _buildDayRecords(List<WorkRecord> records) {
+  Widget _buildDayRecordsWithCompany(List<WorkRecord> records, Map<int, Company> companyMap) {
     if (records.isEmpty) {
       return const Center(child: Text('근무 기록이 없습니다'));
     }
-
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: records.length,
       itemBuilder: (context, index) {
         final r = records[index];
+        final company = companyMap[r.companyId];
+        final companyName = company?.name ?? '알 수 없음';
         final duration = r.workDuration;
-        final wage = r.dailyWage;
-
+        final timeStr = '${r.checkIn?.format(context) ?? '--:--'} ~ ${r.checkOut?.format(context) ?? '--:--'}';
+        final durationStr = duration.inHours > 0
+            ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
+            : '${duration.inMinutes}분';
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Text(r.companyId.toString(), style: Theme.of(context).textTheme.titleMedium),
-                    const Spacer(),
-                    Text(
-                      '${NumberFormat('#,###').format(wage.round())}원',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Theme.of(context).primaryColor,
-                          ),
-                    ),
-                  ],
+                Expanded(
+                  flex: 3,
+                  child: Text(companyName, style: Theme.of(context).textTheme.titleMedium),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text('${r.checkIn?.format(context)} ~ ${r.checkOut?.format(context)}'),
-                    const Spacer(),
-                    Text('${duration.inHours}시간 ${duration.inMinutes.remainder(60)}분'),
-                  ],
+                Expanded(
+                  flex: 4,
+                  child: Text(timeStr, style: const TextStyle(fontSize: 16)),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      durationStr,
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
