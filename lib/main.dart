@@ -5,16 +5,20 @@ import 'screens/home_screen.dart';
 import 'screens/record_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/work_provider.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+// import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // FFI 관련 import 주석 처리
+// import 'package:flutter/foundation.dart' show kIsWeb; // kIsWeb import 주석 처리 (현재 사용 안함)
+// import 'dart:io'; // dart:io import 주석 처리 (현재 사용 안함)
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb) {
+  // FFI 초기화 로직 전체 주석 처리
+  /*
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+  */
 
   await initializeDateFormatting('ko_KR');
   runApp(const MyApp());
