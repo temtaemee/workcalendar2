@@ -159,7 +159,7 @@ class HomeScreen extends StatelessWidget {
                               const SizedBox(width: 6),
                               Text(
                                 provider.isCheckedIn
-                                  ? '출근: ${TimeOfDay.fromDateTime(provider.checkInDateTime!).format(context)}'
+                                  ? '출근: ${DateFormat('HH:mm').format(provider.checkInDateTime!)}'
                                   : '출근 전',
                                 style: GoogleFonts.notoSans(fontSize: 15, color: Colors.black87),
                               ),
@@ -231,7 +231,7 @@ class HomeScreen extends StatelessWidget {
                                         final company = companyMap[r.companyId];
                                         final companyName = company?.name ?? '알 수 없음';
                                         final duration = r.workDuration;
-                                        final timeStr = '${r.checkIn?.format(context) ?? '--:--'} ~ ${r.checkOut?.format(context) ?? '--:--'}';
+                                        final timeStr = '${DateFormat('HH:mm').format(r.checkIn!)} ~ ${DateFormat('HH:mm').format(r.checkOut!)}';
                                         final durationStr = duration.inHours > 0
                                             ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
                                             : '${duration.inMinutes}분';

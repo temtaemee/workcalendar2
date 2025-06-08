@@ -309,64 +309,266 @@ class _RecordScreenState extends State<RecordScreen> {
         final company = companyMap[r.companyId];
         final companyName = company?.name ?? '알 수 없음';
         final duration = r.workDuration;
-        final timeStr = '${r.checkIn?.format(context) ?? '--:--'} ~ ${r.checkOut?.format(context) ?? '--:--'}';
+        final timeStr = '${DateFormat('HH:mm').format(r.checkIn!)} ~ ${DateFormat('HH:mm').format(r.checkOut!)}';
         final durationStr = duration.inHours > 0
             ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
             : '${duration.inMinutes}분';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    companyName,
-                    style: GoogleFonts.notoSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Text(
-                    timeStr,
-                    style: GoogleFonts.notoSans(
-                      fontSize: 15,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      durationStr,
-                      style: GoogleFonts.notoSans(
-                        color: Colors.red[700],
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
+        return GestureDetector(
+          onTap: () => _showEditModal(context, r, companyMap),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      companyName,
+                      style: GoogleFonts.notoSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      timeStr,
+                      style: GoogleFonts.notoSans(
+                        fontSize: 15,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        durationStr,
+                        style: GoogleFonts.notoSans(
+                          color: Colors.red[700],
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  void _showEditModal(BuildContext context, WorkRecord record, Map<int, Company> companyMap) {
+    final companies = companyMap.values.toList();
+    int? selectedCompanyId = record.companyId;
+    DateTime? checkInDateTime = record.checkIn != null 
+        ? DateTime(
+            record.date.year,
+            record.date.month,
+            record.date.day,
+            record.checkIn!.hour,
+            record.checkIn!.minute,
+          )
+        : null;
+    DateTime? checkOutDateTime = record.checkOut != null
+        ? DateTime(
+            record.date.year,
+            record.date.month,
+            record.date.day,
+            record.checkOut!.hour,
+            record.checkOut!.minute,
+          )
+        : null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '근무 기록 수정',
+                    style: GoogleFonts.notoSans(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<int>(
+                    value: selectedCompanyId,
+                    decoration: const InputDecoration(
+                      labelText: '회사',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: companies.map((company) {
+                      return DropdownMenuItem(
+                        value: company.id,
+                        child: Text(company.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedCompanyId = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: checkInDateTime ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (date != null) {
+                              final time = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay.fromDateTime(
+                                  checkInDateTime ?? DateTime.now(),
+                                ),
+                              );
+                              if (time != null) {
+                                setState(() {
+                                  checkInDateTime = DateTime(
+                                    date.year,
+                                    date.month,
+                                    date.day,
+                                    time.hour,
+                                    time.minute,
+                                  );
+                                });
+                              }
+                            }
+                          },
+                          child: Text(
+                            checkInDateTime != null
+                                ? '${DateFormat('yyyy-MM-dd HH:mm').format(checkInDateTime!)}'
+                                : '체크인 날짜/시간 선택',
+                            style: GoogleFonts.notoSans(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: checkOutDateTime ?? DateTime.now(),
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (date != null) {
+                              final time = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay.fromDateTime(
+                                  checkOutDateTime ?? DateTime.now(),
+                                ),
+                              );
+                              if (time != null) {
+                                setState(() {
+                                  checkOutDateTime = DateTime(
+                                    date.year,
+                                    date.month,
+                                    date.day,
+                                    time.hour,
+                                    time.minute,
+                                  );
+                                });
+                              }
+                            }
+                          },
+                          child: Text(
+                            checkOutDateTime != null
+                                ? '${DateFormat('yyyy-MM-dd HH:mm').format(checkOutDateTime!)}'
+                                : '체크아웃 날짜/시간 선택',
+                            style: GoogleFonts.notoSans(fontSize: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (selectedCompanyId != null && 
+                          checkInDateTime != null && 
+                          checkOutDateTime != null) {
+                        final updatedRecord = WorkRecord(
+                          id: record.id,
+                          date: checkInDateTime!,
+                          checkIn: checkInDateTime,
+                          checkOut: checkOutDateTime,
+                          companyId: selectedCompanyId!,
+                          hourlyWage: record.hourlyWage,
+                        );
+                        
+                        await DatabaseHelper().updateWorkRecord(updatedRecord);
+                        if (mounted) {
+                          setState(() {
+                            _futureData = _loadMonthData(_focusedDay);
+                          });
+                          Navigator.pop(context);
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[700],
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      '저장',
+                      style: GoogleFonts.notoSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
         );
       },
     );

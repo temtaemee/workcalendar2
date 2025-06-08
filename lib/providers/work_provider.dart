@@ -17,9 +17,7 @@ class WorkProvider extends ChangeNotifier {
   
   List<Company> get companies => _companies;
   DateTime? get checkInDateTime => _checkInDateTime;
-  TimeOfDay? get checkInTime => _checkInDateTime != null 
-      ? TimeOfDay.fromDateTime(_checkInDateTime!)
-      : null;
+  DateTime? get checkInTime => _checkInDateTime;
   String get selectedPeriod => _selectedPeriod;
   Company? get selectedCompany => _selectedCompany;
   bool get isCheckedIn => _checkInDateTime != null;
@@ -63,10 +61,7 @@ class WorkProvider extends ChangeNotifier {
     final ongoingList = dbRecords.where((r) => r.checkOut == null).toList();
     final ongoing = ongoingList.isNotEmpty ? ongoingList.first : null;
     if (ongoing != null) {
-      _checkInDateTime = DateTime(
-        ongoing.date.year, ongoing.date.month, ongoing.date.day,
-        ongoing.checkIn?.hour ?? 0, ongoing.checkIn?.minute ?? 0
-      ).toUtc().add(const Duration(hours: 9));
+      _checkInDateTime = ongoing.checkIn;
       _currentWorkRecordId = ongoing.id;
       _startTimer();
       notifyListeners();
@@ -104,16 +99,17 @@ class WorkProvider extends ChangeNotifier {
 
   void checkIn() async {
     if (_selectedCompany == null) return;
-    _checkInDateTime = DateTime.now().toUtc().add(const Duration(hours: 9));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 9));
+    _checkInDateTime = now;
     _currentWorkDuration = Duration.zero;
     final record = WorkRecord(
-      date: _checkInDateTime!,
-      checkIn: TimeOfDay.fromDateTime(_checkInDateTime!),
+      date: DateTime(now.year, now.month, now.day),
+      checkIn: now,
       checkOut: null,
       companyId: _selectedCompany!.id!,
       hourlyWage: _selectedCompany!.hourlyWage,
     );
-    print('[출근] companyId: \'${_selectedCompany!.id}\', time: \'${_checkInDateTime}\'');
+    print('[출근] companyId: \'${_selectedCompany!.id}\', time: \'${now}\'');
     final id = await DatabaseHelper().insertWorkRecord(record);
     _currentWorkRecordId = id;
     _startTimer();
@@ -123,7 +119,7 @@ class WorkProvider extends ChangeNotifier {
   void checkOut() async {
     if (_checkInDateTime == null || _selectedCompany == null || _currentWorkRecordId == null) return;
     _timer?.cancel();
-    final checkOutTime = TimeOfDay.fromDateTime(DateTime.now().toUtc().add(const Duration(hours: 9)));
+    final now = DateTime.now().toUtc().add(const Duration(hours: 9));
     // 기존 출근 기록 불러오기
     final db = DatabaseHelper();
     final dbRecords = await db.getWorkRecords();
@@ -134,11 +130,11 @@ class WorkProvider extends ChangeNotifier {
         id: record.id,
         date: record.date,
         checkIn: record.checkIn,
-        checkOut: checkOutTime,
+        checkOut: now,
         companyId: record.companyId,
         hourlyWage: record.hourlyWage,
       );
-      print('[퇴근] companyId: \'${record.companyId}\', time: \'${DateTime.now().toUtc().add(const Duration(hours: 9))}\'');
+      print('[퇴근] companyId: \'${record.companyId}\', time: \'${now}\'');
       await db.updateWorkRecord(updated);
     }
     _checkInDateTime = null;

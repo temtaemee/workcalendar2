@@ -22,7 +22,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'work_calendar.db');
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: _onConfigure,
@@ -42,12 +42,57 @@ class DatabaseHelper {
       await db.execute('DROP TABLE IF EXISTS work_records');
       await db.execute('DROP TABLE IF EXISTS companies');
       await _createTables(db);
+    } else if (oldVersion < 3) {
+      try {
+        await db.transaction((txn) async {
+          // 기존 테이블 백업
+          await txn.execute('ALTER TABLE work_records RENAME TO work_records_old');
+          
+          // 새 테이블 생성
+          await txn.execute('''
+            CREATE TABLE work_records (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              date TEXT NOT NULL,
+              checkIn TEXT,
+              checkOut TEXT,
+              company_id INTEGER NOT NULL,
+              hourlyWage REAL NOT NULL,
+              FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE
+            )
+          ''');
+
+          // 데이터 마이그레이션
+          await txn.execute('''
+            INSERT INTO work_records (id, date, checkIn, checkOut, company_id, hourlyWage)
+            SELECT id, date, 
+              CASE 
+                WHEN checkIn IS NOT NULL THEN date || ' ' || checkIn
+                ELSE NULL
+              END,
+              CASE 
+                WHEN checkOut IS NOT NULL THEN date || ' ' || checkOut
+                ELSE NULL
+              END,
+              company_id, hourlyWage
+            FROM work_records_old
+          ''');
+
+          // 기존 테이블 삭제
+          await txn.execute('DROP TABLE work_records_old');
+        });
+      } catch (e) {
+        print('Error during database upgrade: $e');
+        // 업그레이드 실패 시 테이블 재생성
+        await db.execute('DROP TABLE IF EXISTS work_records');
+        await db.execute('DROP TABLE IF EXISTS companies');
+        await _createTables(db);
+      }
     }
   }
 
   Future<void> _createTables(Database db) async {
     await db.execute('''
-      CREATE TABLE companies (
+      CREATE TABLE IF NOT EXISTS companies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
         workDays TEXT NOT NULL,
@@ -61,7 +106,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE work_records (
+      CREATE TABLE IF NOT EXISTS work_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT NOT NULL,
         checkIn TEXT,
