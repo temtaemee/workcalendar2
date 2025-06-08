@@ -203,111 +203,141 @@ class HomeScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Spacer(),
+                  // 근무 통계/급여 통계 영역 (사진 스타일)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final records = await DatabaseHelper().getWorkRecordsByDateRange(today);
-                        final companies = await DatabaseHelper().getCompanies();
-                        final companyMap = { for (var c in companies) c.id!: c };
-                        showModalBottomSheet(
-                          context: context,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                          ),
-                          isScrollControlled: true,
-                          builder: (context) {
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-                              child: SizedBox(
-                                height: MediaQuery.of(context).size.height * 0.6,
-                                child: records.isEmpty
-                                  ? Center(child: Text('오늘 근무 기록이 없습니다', style: GoogleFonts.notoSans(fontSize: 16, color: Colors.grey[600])))
-                                  : ListView.builder(
-                                      itemCount: records.length,
-                                      itemBuilder: (context, index) {
-                                        final r = records[index];
-                                        final company = companyMap[r.companyId];
-                                        final companyName = company?.name ?? '알 수 없음';
-                                        final duration = r.workDuration;
-                                        final timeStr = '${DateFormat('HH:mm').format(r.checkIn!)} ~ ${DateFormat('HH:mm').format(r.checkOut!)}';
-                                        final durationStr = duration.inHours > 0
-                                            ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
-                                            : '${duration.inMinutes}분';
-                                        return Container(
-                                          margin: const EdgeInsets.only(bottom: 12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(12),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withOpacity(0.05),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(16),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  flex: 3,
-                                                  child: Text(
-                                                    companyName,
-                                                    style: GoogleFonts.notoSans(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  flex: 4,
-                                                  child: Text(
-                                                    timeStr,
-                                                    style: GoogleFonts.notoSans(
-                                                      fontSize: 15,
-                                                      color: Colors.black87,
-                                                    ),
-                                                  ),
-                                                ),
-                                                Expanded(
-                                                  flex: 3,
-                                                  child: Align(
-                                                    alignment: Alignment.centerRight,
-                                                    child: Text(
-                                                      durationStr,
-                                                      style: GoogleFonts.notoSans(
-                                                        color: Colors.red[700],
-                                                        fontWeight: FontWeight.w600,
-                                                        fontSize: 16,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Consumer<WorkProvider>(
+                              builder: (context, provider, _) => ToggleButtons(
+                                isSelected: [provider.selectedPeriod == '일간', provider.selectedPeriod == '주간', provider.selectedPeriod == '월간'],
+                                onPressed: (index) {
+                                  final period = ['일간', '주간', '월간'][index];
+                                  provider.setSelectedPeriod(period);
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                selectedColor: Colors.white,
+                                fillColor: Colors.blueAccent,
+                                color: Colors.blueAccent,
+                                constraints: const BoxConstraints(minWidth: 48, minHeight: 36),
+                                children: [
+                                  Text('일', style: GoogleFonts.notoSans(fontWeight: FontWeight.w600)),
+                                  Text('주', style: GoogleFonts.notoSans(fontWeight: FontWeight.w600)),
+                                  Text('월', style: GoogleFonts.notoSans(fontWeight: FontWeight.w600)),
+                                ],
                               ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Consumer<WorkProvider>(
+                          builder: (context, provider, _) {
+                            final companies = provider.companies;
+                            if (companies.isEmpty) {
+                              return Center(child: Text('등록된 회사가 없습니다', style: GoogleFonts.notoSans(fontSize: 16, color: Colors.grey[600])));
+                            }
+                            return FutureBuilder<List>(
+                              future: DatabaseHelper().getWorkRecords(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) return SizedBox();
+                                final records = snapshot.data!;
+                                final now = DateTime.now();
+                                DateTime startDate, endDate;
+                                String periodLabel;
+                                switch (provider.selectedPeriod) {
+                                  case '일간':
+                                    startDate = DateTime(now.year, now.month, now.day);
+                                    endDate = startDate.add(const Duration(days: 1));
+                                    periodLabel = '오늘';
+                                    break;
+                                  case '주간':
+                                    startDate = now.subtract(Duration(days: now.weekday - 1));
+                                    endDate = startDate.add(const Duration(days: 7));
+                                    periodLabel = '이번 주';
+                                    break;
+                                  case '월간':
+                                    startDate = DateTime(now.year, now.month, 1);
+                                    endDate = DateTime(now.year, now.month + 1, 1);
+                                    periodLabel = '이번 달';
+                                    break;
+                                  default:
+                                    startDate = now;
+                                    endDate = now;
+                                    periodLabel = '';
+                                }
+                                // 기간 내 전체/회사별 집계
+                                final periodRecords = records.where((r) => r.date.isAfter(startDate.subtract(const Duration(seconds: 1))) && r.date.isBefore(endDate)).toList();
+                                final totalDuration = periodRecords.fold<Duration>(Duration.zero, (prev, r) => prev + r.workDuration);
+                                final totalWage = periodRecords.fold<double>(0.0, (prev, r) => prev + r.dailyWage);
+                                String twoDigits(int n) => n.toString().padLeft(2, '0');
+                                final hh = twoDigits(totalDuration.inHours);
+                                final mm = twoDigits(totalDuration.inMinutes.remainder(60));
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // 근무 통계 제목과 총 근무시간 한 줄
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('$periodLabel 근무 통계', style: GoogleFonts.notoSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                                        Text('총 $hh시간 $mm분', style: GoogleFonts.notoSans(fontWeight: FontWeight.w600, fontSize: 15)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    ...companies.map((company) {
+                                      final companyRecords = periodRecords.where((r) => r.companyId == company.id).toList();
+                                      final cDuration = companyRecords.fold<Duration>(Duration.zero, (prev, r) => prev + r.workDuration);
+                                      final chh = twoDigits(cDuration.inHours);
+                                      final cmm = twoDigits(cDuration.inMinutes.remainder(60));
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 2),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(company.name, style: GoogleFonts.notoSans(fontSize: 15)),
+                                            Text('$chh시간 $cmm분 근무', style: GoogleFonts.notoSans(fontSize: 15)),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                    const SizedBox(height: 16),
+                                    // 주급 계산 제목과 총 금액 한 줄
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('$periodLabel 급 계산', style: GoogleFonts.notoSans(fontWeight: FontWeight.bold, fontSize: 16)),
+                                        Text('총 ${totalWage.toStringAsFixed(0)}원', style: GoogleFonts.notoSans(fontWeight: FontWeight.w600, fontSize: 15)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    ...companies.map((company) {
+                                      final companyRecords = periodRecords.where((r) => r.companyId == company.id).toList();
+                                      final cWage = companyRecords.fold<double>(0.0, (prev, r) => prev + r.dailyWage);
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 2),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(company.name, style: GoogleFonts.notoSans(fontSize: 15)),
+                                            Text('${cWage.toStringAsFixed(0)}원', style: GoogleFonts.notoSans(fontSize: 15)),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                );
+                              },
                             );
                           },
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.blueAccent,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Colors.blueAccent)),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        textStyle: GoogleFonts.notoSans(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      child: const Text('근무 기록 보기'),
+                        ),
+                      ],
                     ),
                   ),
+                  const Spacer(),
                 ],
               ),
             );

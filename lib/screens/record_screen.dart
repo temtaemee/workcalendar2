@@ -309,7 +309,9 @@ class _RecordScreenState extends State<RecordScreen> {
         final company = companyMap[r.companyId];
         final companyName = company?.name ?? '알 수 없음';
         final duration = r.workDuration;
-        final timeStr = '${DateFormat('HH:mm').format(r.checkIn!)} ~ ${DateFormat('HH:mm').format(r.checkOut!)}';
+        final timeStr = r.checkIn == null
+            ? '기록 없음'
+            : '${DateFormat('HH:mm').format(r.checkIn!)} ~ ${r.checkOut == null ? "진행중" : DateFormat('HH:mm').format(r.checkOut!)}';
         final durationStr = duration.inHours > 0
             ? '${duration.inHours}시간${duration.inMinutes.remainder(60) > 0 ? ' ${duration.inMinutes.remainder(60)}분' : ''}'
             : '${duration.inMinutes}분';
@@ -375,10 +377,10 @@ class _RecordScreenState extends State<RecordScreen> {
     );
   }
 
-  void _showEditModal(BuildContext context, WorkRecord record, Map<int, Company> companyMap) {
+  void _showEditModal(BuildContext context, WorkRecord record, Map<int, Company> companyMap) async {
     final companies = companyMap.values.toList();
     int? selectedCompanyId = record.companyId;
-    DateTime? checkInDateTime = record.checkIn != null 
+    DateTime? checkInDateTime = record.checkIn != null
         ? DateTime(
             record.date.year,
             record.date.month,
@@ -397,7 +399,7 @@ class _RecordScreenState extends State<RecordScreen> {
           )
         : null;
 
-    showModalBottomSheet(
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -527,8 +529,8 @@ class _RecordScreenState extends State<RecordScreen> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () async {
-                      if (selectedCompanyId != null && 
-                          checkInDateTime != null && 
+                      if (selectedCompanyId != null &&
+                          checkInDateTime != null &&
                           checkOutDateTime != null) {
                         final updatedRecord = WorkRecord(
                           id: record.id,
@@ -538,13 +540,10 @@ class _RecordScreenState extends State<RecordScreen> {
                           companyId: selectedCompanyId!,
                           hourlyWage: record.hourlyWage,
                         );
-                        
+
                         await DatabaseHelper().updateWorkRecord(updatedRecord);
                         if (mounted) {
-                          setState(() {
-                            _futureData = _loadMonthData(_focusedDay);
-                          });
-                          Navigator.pop(context);
+                          Navigator.pop(context, true);
                         }
                       }
                     },
@@ -572,5 +571,11 @@ class _RecordScreenState extends State<RecordScreen> {
         );
       },
     );
+
+    if (result == true) {
+      setState(() {
+        _futureData = _loadMonthData(_focusedDay);
+      });
+    }
   }
 }
