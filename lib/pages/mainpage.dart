@@ -249,8 +249,9 @@ class _MainPageState extends State<MainPage> {
           ),
           const Spacer(),
           Container(
+            height: 60,
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
             decoration: BoxDecoration(
               color: const Color.fromARGB(255, 255, 255, 255),
               borderRadius: const BorderRadius.only(
