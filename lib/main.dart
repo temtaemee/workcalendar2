@@ -56,15 +56,28 @@ class _HomeNavigationState extends State<HomeNavigation> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: '메인'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today), label: '캘린더'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Divider(
+              color: Color.fromARGB(255, 214, 214, 214),
+              height: 1,
+              thickness: 0.5),
+          Container(
+            height: 85,
+            child: BottomNavigationBar(
+              currentIndex: _selectedIndex,
+              onTap: _onItemTapped,
+              elevation: 0,
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.home), label: '메인'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.calendar_today), label: '캘린더'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.settings), label: '설정'),
+              ],
+            ),
+          ),
         ],
       ),
     );
