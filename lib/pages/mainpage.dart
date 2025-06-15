@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import '../models/company.dart';
+import '../widgets/company_modal.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -81,6 +83,22 @@ class _MainPageState extends State<MainPage> {
     return '오늘 ${hours}시간 ${minutes}분째 근무 중';
   }
 
+  void _showAddCompanyModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return CompanyModal(
+          onSave: (Company company) {
+            // TODO: 회사 정보 저장 로직 구현
+            print(company.toJson());
+          },
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     timer?.cancel();
@@ -153,9 +171,12 @@ class _MainPageState extends State<MainPage> {
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('• 회사를 추가하세요'),
-                    Text('+', style: TextStyle(fontSize: 20)),
+                  children: [
+                    const Text('• 회사를 추가하세요'),
+                    GestureDetector(
+                      onTap: _showAddCompanyModal,
+                      child: const Text('+', style: TextStyle(fontSize: 20)),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 32),
