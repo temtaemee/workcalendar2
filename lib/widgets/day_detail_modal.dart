@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../models/work_schedule.dart';
+import 'package:workcalendar2/models/work_schedule.dart';
+import 'package:workcalendar2/repositories/work_schedule_repository.dart';
 import 'work_schedule_modal.dart';
 
 class DayDetailModal extends StatefulWidget {
   final DateTime selectedDay;
+  final List<WorkSchedule> schedules;
   final Function(DateTime) onTodayPressed;
+  final VoidCallback onDataChanged;
 
   const DayDetailModal({
     super.key,
     required this.selectedDay,
+    required this.schedules,
     required this.onTodayPressed,
+    required this.onDataChanged,
   });
 
   @override
@@ -19,22 +24,23 @@ class DayDetailModal extends StatefulWidget {
 }
 
 class _DayDetailModalState extends State<DayDetailModal> {
+  final WorkScheduleRepository _workScheduleRepository = WorkScheduleRepository();
   late DateTime _currentDay;
-  List<WorkSchedule> _schedules = []; // 임시 데이터
+  late List<WorkSchedule> _schedules;
 
   @override
   void initState() {
     super.initState();
     _currentDay = widget.selectedDay;
-    // 임시 데이터 생성
-    _schedules = [
-      WorkSchedule(
-        id: '1',
-        companyId: 'default_company_id',
-        startTime: DateTime(_currentDay.year, _currentDay.month, _currentDay.day, 9, 0),
-        endTime: DateTime(_currentDay.year, _currentDay.month, _currentDay.day, 18, 0),
-      ),
-    ];
+    _schedules = widget.schedules;
+  }
+
+  Future<void> _refreshSchedules() async {
+    final updatedSchedules = await _workScheduleRepository.getSchedulesByDay(_currentDay);
+    setState(() {
+      _schedules = updatedSchedules;
+    });
+    widget.onDataChanged(); // Notify calendar page to rebuild
   }
 
   void _showWorkScheduleModal(BuildContext context, {WorkSchedule? schedule}) {
@@ -47,24 +53,22 @@ class _DayDetailModalState extends State<DayDetailModal> {
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
         child: WorkScheduleModal(
+          selectedDay: _currentDay,
           schedule: schedule,
           isEdit: schedule != null,
-          onSave: (updatedSchedule) {
-            setState(() {
-              if (schedule != null) {
-                final index = _schedules.indexWhere((s) => s.id == schedule.id);
-                if (index != -1) {
-                  _schedules[index] = updatedSchedule;
-                }
-              } else {
-                _schedules.add(updatedSchedule);
-              }
-            });
+          onSave: (updatedSchedule) async {
+            if (schedule != null) {
+              await _workScheduleRepository.updateWorkSchedule(updatedSchedule);
+            } else {
+              await _workScheduleRepository.addWorkSchedule(updatedSchedule);
+            }
+            Navigator.pop(context); // Close WorkScheduleModal first
+            _refreshSchedules(); // Then refresh the list
           },
-          onDelete: schedule != null ? (id) {
-            setState(() {
-              _schedules.removeWhere((s) => s.id == id);
-            });
+          onDelete: schedule != null ? (id) async {
+            await _workScheduleRepository.deleteWorkSchedule(id);
+            Navigator.pop(context); // Close WorkScheduleModal first
+            _refreshSchedules(); // Then refresh the list
           } : null,
         ),
       ),

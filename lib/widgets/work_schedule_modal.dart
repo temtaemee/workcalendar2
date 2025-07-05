@@ -4,13 +4,15 @@ import '../models/work_schedule.dart';
 
 class WorkScheduleModal extends StatefulWidget {
   final WorkSchedule? schedule;
+  final DateTime selectedDay;
   final bool isEdit;
   final Function(WorkSchedule) onSave;
-  final Function(String)? onDelete;
+  final Function(int)? onDelete;
 
   const WorkScheduleModal({
     super.key,
     this.schedule,
+    required this.selectedDay,
     required this.isEdit,
     required this.onSave,
     this.onDelete,
@@ -21,24 +23,22 @@ class WorkScheduleModal extends StatefulWidget {
 }
 
 class _WorkScheduleModalState extends State<WorkScheduleModal> {
-  late String _selectedCompanyId;
+  late int? _selectedCompanyId;
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
 
   @override
   void initState() {
     super.initState();
-    _selectedCompanyId = widget.schedule?.companyId ?? 'default_company_id';
+    _selectedCompanyId = widget.schedule?.companyId;
     
-    final now = DateTime.now();
     _startTime = widget.schedule?.startTime != null
         ? TimeOfDay.fromDateTime(widget.schedule!.startTime)
-        : TimeOfDay(hour: now.hour, minute: now.minute);
+        : const TimeOfDay(hour: 9, minute: 0);
     
-    final endTime = now.add(const Duration(hours: 9));
     _endTime = widget.schedule?.endTime != null
         ? TimeOfDay.fromDateTime(widget.schedule!.endTime)
-        : TimeOfDay(hour: endTime.hour, minute: endTime.minute);
+        : const TimeOfDay(hour: 18, minute: 0);
   }
 
   String _formatTimeOfDay(TimeOfDay time) {
@@ -135,29 +135,30 @@ class _WorkScheduleModalState extends State<WorkScheduleModal> {
   void _handleSave() {
     final now = DateTime.now();
     final startDateTime = DateTime(
-      now.year,
-      now.month,
-      now.day,
+      widget.selectedDay.year,
+      widget.selectedDay.month,
+      widget.selectedDay.day,
       _startTime.hour,
       _startTime.minute,
     );
     final endDateTime = DateTime(
-      now.year,
-      now.month,
-      now.day,
+      widget.selectedDay.year,
+      widget.selectedDay.month,
+      widget.selectedDay.day,
       _endTime.hour,
       _endTime.minute,
     );
 
     final schedule = WorkSchedule(
-      id: widget.schedule?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: widget.schedule?.id,
       companyId: _selectedCompanyId,
       startTime: startDateTime,
       endTime: endDateTime,
+      regDate: widget.schedule?.regDate ?? now,
+      uptDate: now,
     );
 
     widget.onSave(schedule);
-    Navigator.pop(context);
   }
 
   @override
@@ -191,7 +192,7 @@ class _WorkScheduleModalState extends State<WorkScheduleModal> {
                     borderRadius: BorderRadius.circular(12),
                     color: Colors.grey[50],
                   ),
-                  child: DropdownButtonFormField<String>(
+                  child: DropdownButtonFormField<int>(
                     value: _selectedCompanyId,
                     decoration: const InputDecoration(
                       labelText: '회사',
@@ -203,16 +204,14 @@ class _WorkScheduleModalState extends State<WorkScheduleModal> {
                     dropdownColor: Colors.white,
                     items: [
                       DropdownMenuItem(
-                        value: 'default_company_id',
-                        child: Text('기본 회사', style: TextStyle(color: Colors.black87)), // 임시 데이터
+                        value: null,
+                        child: Text('기본 회사', style: TextStyle(color: Colors.black87)),
                       ),
                     ],
                     onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedCompanyId = value;
-                        });
-                      }
+                      setState(() {
+                        _selectedCompanyId = value;
+                      });
                     },
                   ),
                 ),
@@ -288,8 +287,7 @@ class _WorkScheduleModalState extends State<WorkScheduleModal> {
                     child: TextButton(
                       onPressed: () {
                         if (widget.schedule?.id != null) {
-                          widget.onDelete!(widget.schedule!.id);
-                          Navigator.pop(context);
+                          widget.onDelete!(widget.schedule!.id!);
                         }
                       },
                       style: TextButton.styleFrom(

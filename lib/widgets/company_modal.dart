@@ -135,6 +135,9 @@ class _CompanyModalState extends State<CompanyModal> {
       final company = Company(
         id: DateTime.now().millisecondsSinceEpoch, // 임시 ID 생성
         name: _nameController.text,
+        color: Colors.black87,
+        regDate: DateTime.now(),
+        uptDate: DateTime.now(),
         workingDays: _workingDays,
         startTime: _startTime,
         endTime: _endTime,
