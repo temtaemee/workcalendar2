@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../models/company.dart';
+import '../models/work_schedule.dart';
+import '../repositories/work_schedule_repository.dart';
 import '../widgets/company_modal.dart';
+import '../repositories/company_repository.dart';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -12,12 +15,92 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
+  final WorkScheduleRepository _workScheduleRepository = WorkScheduleRepository();
+  final CompanyRepository _companyRepository = CompanyRepository();
+  
   int selectedIndex = 1; // 0: 일, 1: 주, 2: 월
+  Duration _totalWorkDuration = Duration.zero;
+  double _totalPay = 0.0;
+  List<Company> _companies = [];
+  Map<int?, Duration> _workDurationByCompany = {};
+  bool _isLoading = false;
 
   bool isWorking = false;
   DateTime? startTime;
   Duration workingDuration = Duration.zero;
   Timer? timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStatistics();
+  }
+
+  Future<void> _fetchStatistics() async {
+    setState(() { _isLoading = true; });
+
+    final now = DateTime.now();
+    DateTime startDate;
+    DateTime endDate;
+
+    switch (selectedIndex) {
+      case 0: // 일
+        startDate = DateTime(now.year, now.month, now.day);
+        endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case 1: // 주
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        startDate = DateTime(startDate.year, startDate.month, startDate.day);
+        endDate = startDate.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+        break;
+      case 2: // 월
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        break;
+      default:
+        return;
+    }
+
+    final schedules = await _workScheduleRepository.getSchedulesByDateRange(startDate, endDate);
+    final companies = await _companyRepository.getAllCompanies();
+
+    Duration totalDuration = Duration.zero;
+    double totalPay = 0.0;
+    Map<int?, Duration> workDurationByCompany = {};
+
+    for (final schedule in schedules) {
+      final duration = schedule.workingHours;
+      totalDuration += duration;
+
+      workDurationByCompany[schedule.companyId] = 
+          (workDurationByCompany[schedule.companyId] ?? Duration.zero) + duration;
+
+      if (schedule.company != null && schedule.company!.paymentType == PaymentType.hourly) {
+        final hourlyRate = schedule.company!.paymentAmount ?? 0;
+        totalPay += (duration.inMinutes / 60.0) * hourlyRate;
+      }
+    }
+    
+    if(mounted) {
+      setState(() {
+        _totalWorkDuration = totalDuration;
+        _totalPay = totalPay;
+        _companies = companies;
+        _workDurationByCompany = workDurationByCompany;
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    if (duration.inMinutes <= 0) return '0h';
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (minutes == 0) {
+      return '${hours}h';
+    }
+    return '${hours}h ${minutes}m';
+  }
 
   String getTodayFormatted() {
     final now = DateTime.now();
@@ -40,16 +123,7 @@ class _MainPageState extends State<MainPage> {
   }
 
   String getPayTitle() {
-    switch (selectedIndex) {
-      case 0:
-        return '오늘 주급 계산';
-      case 1:
-        return '이번 주 주급 계산';
-      case 2:
-        return '이번 달 주급 계산';
-      default:
-        return '';
-    }
+    return '예상 급여';
   }
 
   void startWork() {
@@ -89,9 +163,9 @@ class _MainPageState extends State<MainPage> {
       backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
         return CompanyModal(
-          onSave: (Company company) {
-            // TODO: 회사 정보 저장 로직 구현
-            print(company.toJson());
+          onSave: (Company company) async {
+            await _companyRepository.addCompany(company);
+            await _fetchStatistics();
           },
         );
       },
@@ -151,6 +225,7 @@ class _MainPageState extends State<MainPage> {
                     setState(() {
                       selectedIndex = index;
                     });
+                    _fetchStatistics();
                   },
                 ),
               ],
@@ -169,24 +244,68 @@ class _MainPageState extends State<MainPage> {
                       style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    const Text(
-                      '총 0 시간',
-                      style:
+                    Text(
+                      '총 ${_formatDuration(_totalWorkDuration)}',
+                      style: const
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('• 회사를 추가하세요'),
-                    GestureDetector(
-                      onTap: _showAddCompanyModal,
-                      child: const Text('+', style: TextStyle(fontSize: 20)),
-                    ),
+                if (_companies.isEmpty)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('• 회사를 추가하세요'),
+                      GestureDetector(
+                        onTap: _showAddCompanyModal,
+                        child: const Text('+', style: TextStyle(fontSize: 20)),
+                      ),
+                    ],
+                  )
+                else
+                  ...[
+                    if (_workDurationByCompany[null] != null && _workDurationByCompany[null]! > Duration.zero)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('-'),
+                            Text(
+                              _formatDuration(_workDurationByCompany[null]!),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ..._companies.map((company) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: company.color,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(company.name),
+                                ],
+                              ),
+                              Text(
+                                _formatDuration(_workDurationByCompany[company.id] ?? Duration.zero),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        )),
                   ],
-                ),
                 const SizedBox(height: 32),
                 const Text(
                   '목표시간을 설정 할 수 있습니다.',
@@ -209,36 +328,34 @@ class _MainPageState extends State<MainPage> {
                       style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    const Text(
-                      '총 0 원',
-                      style:
+                    Text(
+                      '총 ${NumberFormat.decimalPattern().format(_totalPay)} 원',
+                      style: const
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Text('• 시급을 설정해주세요'),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: const [
-                          Icon(Icons.arrow_drop_down, size: 18),
-                          Text('시급'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('0원'),
-                  ],
-                ),
+                if (_companies.isEmpty || _companies.every((c) => c.paymentAmount == null || c.paymentAmount == 0))
+                  const Text('• 시급을 설정해주세요')
+                else
+                  ..._companies.where((c) => c.paymentAmount != null && c.paymentAmount! > 0).map((company) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: company.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text('${company.name} | 시급 ${NumberFormat.decimalPattern().format(company.paymentAmount)}원'),
+                          ],
+                        ),
+                      )),
                 const SizedBox(height: 32),
                 const Text(
                   '목표금액을 설정 할 수 있습니다.',

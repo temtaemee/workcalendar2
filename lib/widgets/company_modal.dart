@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import '../models/company.dart';
+import 'package:workcalendar2/models/company.dart';
 
 class CompanyModal extends StatefulWidget {
   final Function(Company) onSave;
+  final Company? company;
 
-  const CompanyModal({super.key, required this.onSave});
+  const CompanyModal({
+    super.key,
+    required this.onSave,
+    this.company,
+  });
 
   @override
   State<CompanyModal> createState() => _CompanyModalState();
@@ -22,8 +27,42 @@ class _CompanyModalState extends State<CompanyModal> {
   TimeOfDay _lunchStartTime = const TimeOfDay(hour: 12, minute: 0);
   TimeOfDay _lunchEndTime = const TimeOfDay(hour: 13, minute: 0);
   bool _useLunchTime = true;
+  bool get _isEdit => widget.company != null;
+  Color _selectedColor = Colors.blue; // 기본 색상
+
+  final List<Color> _colorPalette = [
+    Colors.red, Colors.pink, Colors.purple, Colors.deepPurple,
+    Colors.indigo, Colors.blue, Colors.lightBlue, Colors.cyan,
+    Colors.teal, Colors.green, Colors.lightGreen, Colors.lime,
+    Colors.yellow, Colors.amber, Colors.orange, Colors.deepOrange,
+    Colors.brown, Colors.grey, Colors.blueGrey, Colors.black,
+  ];
 
   final List<String> _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEdit) {
+      final company = widget.company!;
+      _nameController.text = company.name;
+      _workingDays = company.workingDays;
+      _startTime = company.startTime;
+      _endTime = company.endTime;
+      _paymentType = company.paymentType;
+      if (company.paymentAmount != null) {
+        _paymentController.text = company.paymentAmount.toString();
+      }
+      if (company.lunchStartTime != null && company.lunchEndTime != null) {
+        _useLunchTime = true;
+        _lunchStartTime = company.lunchStartTime!;
+        _lunchEndTime = company.lunchEndTime!;
+      } else {
+        _useLunchTime = false;
+      }
+      _selectedColor = company.color;
+    }
+  }
 
   Future<void> _selectTime(bool isStart, bool isLunch) async {
     await showModalBottomSheet(
@@ -132,12 +171,13 @@ class _CompanyModalState extends State<CompanyModal> {
 
   void _handleSave() {
     if (_formKey.currentState!.validate()) {
+      final now = DateTime.now();
       final company = Company(
-        id: DateTime.now().millisecondsSinceEpoch, // 임시 ID 생성
+        id: widget.company?.id,
         name: _nameController.text,
-        color: Colors.black87,
-        regDate: DateTime.now(),
-        uptDate: DateTime.now(),
+        color: _selectedColor,
+        regDate: widget.company?.regDate ?? now,
+        uptDate: now,
         workingDays: _workingDays,
         startTime: _startTime,
         endTime: _endTime,
@@ -178,9 +218,9 @@ class _CompanyModalState extends State<CompanyModal> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      '회사 추가',
-                      style: TextStyle(
+                    Text(
+                      _isEdit ? '회사 수정' : '회사 추가',
+                      style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w600,
                       ),
@@ -218,6 +258,46 @@ class _CompanyModalState extends State<CompanyModal> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 24),
+                const Text('회사 색상',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87
+                  )
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 40,
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 10,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: _colorPalette.length,
+                    itemBuilder: (context, index) {
+                      final color = _colorPalette[index];
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedColor = color;
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _selectedColor == color ? Colors.black : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
                 const SizedBox(height: 24),
                 const Text('출근 요일', 

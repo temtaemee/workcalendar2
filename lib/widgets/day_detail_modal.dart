@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:workcalendar2/models/work_schedule.dart';
-import 'package:workcalendar2/repositories/work_schedule_repository.dart';
+import '../models/work_schedule.dart';
+import '../repositories/work_schedule_repository.dart';
+import '../repositories/company_repository.dart';
 import 'work_schedule_modal.dart';
 
 class DayDetailModal extends StatefulWidget {
   final DateTime selectedDay;
   final List<WorkSchedule> schedules;
   final Function(DateTime) onTodayPressed;
-  final VoidCallback onDataChanged;
+  final Function() onDataChanged;
 
   const DayDetailModal({
     super.key,
@@ -25,8 +26,9 @@ class DayDetailModal extends StatefulWidget {
 
 class _DayDetailModalState extends State<DayDetailModal> {
   final WorkScheduleRepository _workScheduleRepository = WorkScheduleRepository();
+  final CompanyRepository _companyRepository = CompanyRepository();
   late DateTime _currentDay;
-  late List<WorkSchedule> _schedules;
+  List<WorkSchedule> _schedules = [];
 
   @override
   void initState() {
@@ -35,40 +37,45 @@ class _DayDetailModalState extends State<DayDetailModal> {
     _schedules = widget.schedules;
   }
 
-  Future<void> _refreshSchedules() async {
-    final updatedSchedules = await _workScheduleRepository.getSchedulesByDay(_currentDay);
-    setState(() {
-      _schedules = updatedSchedules;
-    });
-    widget.onDataChanged(); // Notify calendar page to rebuild
+  Future<void> _refetchSchedules() async {
+    final schedules = await _workScheduleRepository.getSchedulesByDay(_currentDay);
+    if (mounted) {
+      setState(() {
+        _schedules = schedules;
+      });
+    }
   }
 
-  void _showWorkScheduleModal(BuildContext context, {WorkSchedule? schedule}) {
+  void _showWorkScheduleModal(BuildContext context, {WorkSchedule? schedule}) async {
+    final companies = await _companyRepository.getAllCompanies();
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+      builder: (context) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
         child: WorkScheduleModal(
-          selectedDay: _currentDay,
           schedule: schedule,
           isEdit: schedule != null,
+          selectedDate: _currentDay,
+          companies: companies,
           onSave: (updatedSchedule) async {
             if (schedule != null) {
               await _workScheduleRepository.updateWorkSchedule(updatedSchedule);
             } else {
               await _workScheduleRepository.addWorkSchedule(updatedSchedule);
             }
-            Navigator.pop(context); // Close WorkScheduleModal first
-            _refreshSchedules(); // Then refresh the list
+            await _refetchSchedules();
+            widget.onDataChanged();
           },
           onDelete: schedule != null ? (id) async {
             await _workScheduleRepository.deleteWorkSchedule(id);
-            Navigator.pop(context); // Close WorkScheduleModal first
-            _refreshSchedules(); // Then refresh the list
+            await _refetchSchedules();
+            widget.onDataChanged();
           } : null,
         ),
       ),
@@ -76,9 +83,10 @@ class _DayDetailModalState extends State<DayDetailModal> {
   }
 
   Widget _buildWorkScheduleItem(WorkSchedule schedule) {
-    final hours = schedule.workingHours.inHours;
-    final minutes = schedule.workingHours.inMinutes % 60;
-    final timeText = minutes > 0 ? '$hours시간 $minutes분' : '$hours시간';
+    final duration = schedule.workingHours;
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final timeText = minutes > 0 ? '${hours}h ${minutes}m' : '${hours}h';
 
     return GestureDetector(
       onTap: () => _showWorkScheduleModal(context, schedule: schedule),
@@ -94,10 +102,16 @@ class _DayDetailModalState extends State<DayDetailModal> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.blue.shade100,
+                color: schedule.company?.color.withOpacity(0.2) ?? Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(5),
               ),
-              child: const Text('회사'),
+              child: Text(
+                schedule.company?.name ?? '-',
+                style: TextStyle(
+                  color: schedule.company?.color ?? Colors.grey.shade800,
+                  fontWeight: FontWeight.bold
+                ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(

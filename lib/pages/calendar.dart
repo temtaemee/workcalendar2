@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:workcalendar2/models/work_schedule.dart';
+import 'package:workcalendar2/models/company.dart';
 import 'package:workcalendar2/repositories/work_schedule_repository.dart';
 import '../widgets/day_detail_modal.dart';
 
@@ -162,22 +163,27 @@ class _CalendarState extends State<Calendar> {
           },
           markerBuilder: (context, day, events) {
             if (events.isNotEmpty) {
+              final uniqueCompanies = (events as List<WorkSchedule>)
+                  .map((e) => e.company)
+                  .whereType<Company>()
+                  .toSet()
+                  .toList();
+
               return Positioned(
                 bottom: 8,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    events.length > 3 ? 3 : events.length,
-                    (index) => Container(
+                  children: uniqueCompanies.take(3).map((company) {
+                    return Container(
                       margin: const EdgeInsets.symmetric(horizontal: 1.5),
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: (events[index] as WorkSchedule).company?.color ?? Colors.grey,
+                        color: company.color,
                       ),
-                    ),
-                  ),
+                    );
+                  }).toList(),
                 ),
               );
             }
@@ -207,17 +213,47 @@ class _CalendarState extends State<Calendar> {
             );
           },
           selectedBuilder: (context, day, focusedDay) {
+            final events = _getEventsForDay(day);
+            final uniqueCompanies = events.map((e) => e.company).where((c) => c != null).toSet().toList();
+
             return Container(
               margin: const EdgeInsets.all(4),
               alignment: Alignment.center,
               child: Container(
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0),
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(
-                  '${day.day}',
-                  style: const TextStyle(color: Colors.black),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('${day.day}', style: const TextStyle(fontSize: 16)),
+                    const SizedBox(height: 4),
+                    if (events.isNotEmpty)
+                      Text(
+                        _formatDuration(_calculateTotalDuration(events)),
+                        style: const TextStyle(fontSize: 10, color: Colors.blue),
+                      )
+                    else 
+                      const SizedBox(height: 10),
+                    const SizedBox(height: 4),
+                    if (uniqueCompanies.isNotEmpty)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: uniqueCompanies.take(3).map((company) => Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: company?.color ?? Colors.grey,
+                          ),
+                        )).toList(),
+                      )
+                    else
+                      const SizedBox(height: 8),
+                  ],
                 ),
               ),
             );
