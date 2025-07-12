@@ -82,6 +82,7 @@ class _DataManagementPageState extends State<DataManagementPage> {
     final bool? confirmed = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: const Text('근무 기록 업데이트'),
         content: Text(
           '${DateFormat('yyyy/MM/dd').format(_startDate)} ~ ${DateFormat('yyyy/MM/dd').format(_endDate)} 기간의 \'회사 없음\' 기록을 모두 선택된 회사로 변경합니다. 이 작업은 되돌릴 수 없습니다. 정말 실행하시겠습니까?',

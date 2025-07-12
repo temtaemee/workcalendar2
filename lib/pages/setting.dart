@@ -1,9 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:workcalendar2/pages/company_management_page.dart';
 import 'package:workcalendar2/pages/data_management_page.dart';
 
-class Setting extends StatelessWidget {
+class Setting extends StatefulWidget {
   const Setting({super.key});
+
+  @override
+  State<Setting> createState() => _SettingState();
+}
+
+class _SettingState extends State<Setting> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _version = info.version;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +62,10 @@ class Setting extends StatelessWidget {
             },
           ),
           const Divider(),
+          ListTile(
+            title: const Text('버전 정보'),
+            trailing: Text(_version),
+          ),
         ],
       ),
     );

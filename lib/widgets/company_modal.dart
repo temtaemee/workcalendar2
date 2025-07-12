@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:workcalendar2/models/company.dart';
 
 class CompanyModal extends StatefulWidget {
@@ -30,14 +31,6 @@ class _CompanyModalState extends State<CompanyModal> {
   bool get _isEdit => widget.company != null;
   Color _selectedColor = Colors.blue; // 기본 색상
 
-  final List<Color> _colorPalette = [
-    Colors.red, Colors.pink, Colors.purple, Colors.deepPurple,
-    Colors.indigo, Colors.blue, Colors.lightBlue, Colors.cyan,
-    Colors.teal, Colors.green, Colors.lightGreen, Colors.lime,
-    Colors.yellow, Colors.amber, Colors.orange, Colors.deepOrange,
-    Colors.brown, Colors.grey, Colors.blueGrey, Colors.black,
-  ];
-
   final List<String> _weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
   @override
@@ -62,6 +55,34 @@ class _CompanyModalState extends State<CompanyModal> {
       }
       _selectedColor = company.color;
     }
+  }
+
+  void _showColorPicker() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        title: const Text('색상 선택'),
+        content: SingleChildScrollView(
+          child: BlockPicker(
+            pickerColor: _selectedColor,
+            onColorChanged: (color) {
+              setState(() {
+                _selectedColor = color;
+              });
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('완료'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _selectTime(bool isStart, bool isLunch) async {
@@ -193,6 +214,29 @@ class _CompanyModalState extends State<CompanyModal> {
     }
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87
+          ),
+        ),
+        const SizedBox(width: 4),
+        const Text(
+          '(선택)',
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.black38
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -232,6 +276,8 @@ class _CompanyModalState extends State<CompanyModal> {
                   ],
                 ),
                 const SizedBox(height: 24),
+                _buildSectionTitle('기본 정보'),
+                const SizedBox(height: 12),
                 TextFormField(
                   controller: _nameController,
                   decoration: InputDecoration(
@@ -254,59 +300,34 @@ class _CompanyModalState extends State<CompanyModal> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return '회사명을 입력해주세요';
+                      return '회사명을 입력해주세요.';
                     }
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
-                const Text('회사 색상',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87
-                  )
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 40,
-                  child: GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 10,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    itemCount: _colorPalette.length,
-                    itemBuilder: (context, index) {
-                      final color = _colorPalette[index];
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedColor = color;
-                          });
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _selectedColor == color ? Colors.black : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: _showColorPicker,
+                  child: Row(
+                    children: [
+                      const Text(
+                        '회사 색상',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                      const Spacer(),
+                      CircleAvatar(
+                        backgroundColor: _selectedColor,
+                        radius: 14,
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text('출근 요일', 
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87
-                  )
-                ),
+
+                const SizedBox(height: 32),
+
+                _buildSectionTitle('근무 요일'),
                 const SizedBox(height: 12),
                 Container(
                   height: 44,

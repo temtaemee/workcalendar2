@@ -55,6 +55,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
     final bool? confirmed = await showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
         title: const Text('회사 삭제'),
         content: const Text('정말로 이 회사를 삭제하시겠습니까? 관련된 모든 근무 기록의 연결이 끊어집니다.'),
         actions: [
