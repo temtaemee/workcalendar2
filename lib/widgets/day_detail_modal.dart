@@ -162,15 +162,21 @@ class _DayDetailModalState extends State<DayDetailModal> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade100,
+                      color: schedule.company?.color.withOpacity(0.2) ?? Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(5),
                     ),
-                    child: const Text('회사'),
+                    child: Text(
+                      schedule.company?.name ?? '회사 없음',
+                      style: TextStyle(
+                        color: schedule.company?.color ?? Colors.grey.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '${DateFormat('dd일 HH:mm').format(schedule.startTime)} ~ ${DateFormat('dd일 HH:mm').format(schedule.endTime)}',
+                      '${DateFormat('HH:mm').format(schedule.startTime)} ~ ${DateFormat('HH:mm').format(schedule.endTime)}',
                       style: TextStyle(color: Colors.grey.shade700),
                     ),
                   ),

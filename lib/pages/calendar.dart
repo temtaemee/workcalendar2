@@ -162,32 +162,8 @@ class _CalendarState extends State<Calendar> {
             return null; // Use default builder for days with no events
           },
           markerBuilder: (context, day, events) {
-            if (events.isNotEmpty) {
-              final uniqueCompanies = (events as List<WorkSchedule>)
-                  .map((e) => e.company)
-                  .whereType<Company>()
-                  .toSet()
-                  .toList();
-
-              return Positioned(
-                bottom: 8,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: uniqueCompanies.take(3).map((company) {
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: company.color,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              );
-            }
-            return null;
+            // 사용자의 요청에 따라 마커를 완전히 제거합니다.
+            return const SizedBox.shrink();
           },
           todayBuilder: (context, day, focusedDay) {
             return Container(
@@ -237,22 +213,6 @@ class _CalendarState extends State<Calendar> {
                       )
                     else 
                       const SizedBox(height: 10),
-                    const SizedBox(height: 4),
-                    if (uniqueCompanies.isNotEmpty)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: uniqueCompanies.take(3).map((company) => Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: company?.color ?? Colors.grey,
-                          ),
-                        )).toList(),
-                      )
-                    else
-                      const SizedBox(height: 8),
                   ],
                 ),
               ),
