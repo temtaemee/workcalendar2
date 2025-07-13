@@ -1,4 +1,4 @@
-package com.example.workcalendar2
+package com.yj.workcalendar2
 
 import io.flutter.embedding.android.FlutterActivity
 
